@@ -1,20 +1,21 @@
 #[macro_use]
 extern crate enum_kinds;
 
-#[macro_use]
-extern crate clap;
-
+mod codegen;
 mod compilation_error;
 mod lexer;
 mod parser;
 mod position;
 mod print;
+mod semantic_analyzer;
 
 use clap::{App, Arg};
+use codegen::codegen::codegen_program;
 use compilation_error::CompilationError;
 use lexer::lexer::Lexer;
 use parser::ast_json::JsonBuilder;
 use parser::parser::Parser;
+use semantic_analyzer::semantic_analyzer::SemanticAnalysis;
 use std::env;
 use std::fs;
 use std::process;
@@ -67,9 +68,9 @@ fn main() {
     }
 
     let mut parser = Parser::new(tokens);
-    let body_node = parser.parse();
+    let block_node = parser.parse();
 
-    let body_node = match body_node {
+    let block_node = match block_node {
         Ok(node) => node,
         Err(e) => {
             print_error(e, &input[..]);
@@ -77,9 +78,12 @@ fn main() {
         }
     };
 
-    fs::write("debug.json", body_node.to_json()).unwrap();
+    fs::write("debug.json", block_node.to_json()).unwrap();
 
     print::print_message("Saved AST json", print::Status::Ok);
+
+    block_node.analyze_semantics();
+    codegen_program(block_node);
 
     print::print_message(
         &format!("Done compiling {}", filename)[..],

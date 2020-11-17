@@ -3,6 +3,14 @@ use crate::compilation_error::CompilationError;
 use crate::position::Position;
 use std::vec::Vec;
 
+fn is_identifier_start(c: char) -> bool {
+    ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_'
+}
+
+fn is_identifier_body(c: char) -> bool {
+    is_identifier_start(c) || ('0' <= c && c <= '9')
+}
+
 pub struct Lexer {
     input: String,
     position: Position,
@@ -113,12 +121,14 @@ impl Lexer {
             return Ok(None);
         }
 
-        let token = if char == '\'' {
+        let token = if char == '"' {
             self.parse_string_literal()?
-        } else if char == '"' {
+        } else if char == '\'' {
             self.parse_char_literal()?
         } else if char.is_digit(10) {
             self.parse_number_literal()?
+        } else if is_identifier_start(char) {
+            self.parse_identifier()?
         } else {
             self.parse_single_char_token()?
         };
@@ -167,7 +177,7 @@ impl Lexer {
 
         let mut value = "".to_owned();
 
-        while self.eat()? != '\'' {
+        while self.eat()? != '"' {
             value.push(self.get_char()?);
         }
 
@@ -186,7 +196,7 @@ impl Lexer {
 
         let char = self.eat()?;
 
-        self.eat_expect('"')?;
+        self.eat_expect('\'')?;
 
         Ok(Token {
             value: TokenValue::CharLiteral(char),
@@ -235,5 +245,31 @@ impl Lexer {
                 length: value.chars().count() as i32,
             })
         }
+    }
+
+    /// Parses keywords or identifiers
+    fn parse_identifier(&mut self) -> Result<Token, CompilationError> {
+        // Save start position
+        let pos = self.position;
+
+        let mut identifier = "".to_owned();
+        identifier.push(self.get_char()?);
+
+        while is_identifier_body(self.peek()?) {
+            identifier.push(self.eat()?);
+        }
+
+        let tok_val = match &identifier[..] {
+            "debug" => TokenValue::Debug,
+
+            _ => TokenValue::Identifier(identifier.clone()),
+        };
+
+        Ok(Token {
+            value: tok_val,
+            representation: identifier.clone(),
+            position: pos,
+            length: identifier.len() as i32,
+        })
     }
 }

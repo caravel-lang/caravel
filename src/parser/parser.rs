@@ -14,7 +14,7 @@ impl Parser {
         Parser { tokens, index: -1 }
     }
 
-    pub fn parse(&mut self) -> Result<ast::BodyNode, CompilationError> {
+    pub fn parse(&mut self) -> Result<ast::BlockNode, CompilationError> {
         self.parse_program()
     }
 
@@ -85,26 +85,43 @@ impl Parser {
     // Parse functions                              //
     //==============================================//
 
-    /// program = body
-    fn parse_program(&mut self) -> Result<ast::BodyNode, CompilationError> {
-        self.parse_body()
+    /// program = block
+    fn parse_program(&mut self) -> Result<ast::BlockNode, CompilationError> {
+        self.parse_block()
     }
 
-    /// body = (expression EOL)*
-    fn parse_body(&mut self) -> Result<ast::BodyNode, CompilationError> {
+    /// block = (expression? EOL)*
+    fn parse_block(&mut self) -> Result<ast::BlockNode, CompilationError> {
         let mut statements = vec![];
 
         while self.index + 1 < self.tokens.len() as i32 {
-            statements.push(self.parse_expression()?);
+            if self.peek()?.value.get_kind() != TokenValueKind::EOL {
+                statements.push(self.parse_expression()?);
+            }
+
             self.eat_expect(TokenValueKind::EOL)?;
         }
 
-        Ok(ast::BodyNode::new(statements))
+        Ok(ast::BlockNode::new(statements))
     }
 
-    /// expression = term
+    /// expression = term | debug_stmt
     fn parse_expression(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
-        self.parse_term()
+        match self.peek()?.value {
+            TokenValue::Debug => self.parse_debug_stmt(),
+            _ => self.parse_term(),
+        }
+    }
+
+    /// debug_stmt = DEBUG expression
+    fn parse_debug_stmt(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
+        self.eat_expect(TokenValueKind::Debug)?;
+
+        let expr = self.parse_expression()?;
+
+        Ok(ast::ExpressionNode::new(ast::ExpressionValue::Debug(
+            Rc::new(expr),
+        )))
     }
 
     /// term = factor (('+' | '-') factor)*

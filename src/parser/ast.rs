@@ -1,7 +1,8 @@
 use crate::lexer::token::Token;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Clone, EnumKind)]
+#[enum_kind(ExpressionValueKind)]
 pub enum ExpressionValue {
     // Literals
     IntLiteral(i64),
@@ -10,6 +11,8 @@ pub enum ExpressionValue {
     CharLiteral(char),
 
     BinaryOp(Rc<ExpressionNode>, Token, Rc<ExpressionNode>),
+
+    Debug(Rc<ExpressionNode>),
 }
 
 #[derive(Clone)]
@@ -27,13 +30,16 @@ impl ExpressionNode {
     }
 }
 
-pub struct BodyNode {
+// We could have made this part of the ExpressionValue enum
+// but this way some functions can only accept expressions
+// and vice versa
+pub struct BlockNode {
     statements: Vec<ExpressionNode>,
 }
 
-impl BodyNode {
+impl BlockNode {
     pub fn new(statements: Vec<ExpressionNode>) -> Self {
-        BodyNode { statements }
+        BlockNode { statements }
     }
 
     pub fn get_statements(&self) -> Vec<ExpressionNode> {

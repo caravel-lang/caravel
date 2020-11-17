@@ -34,6 +34,11 @@ pub enum TokenValue {
     // Other
     OpenParen,
     CloseParen,
+
+    Identifier(String),
+
+    // Keywords
+    Debug,
 }
 
 impl TokenValue {
@@ -61,6 +66,10 @@ impl fmt::Display for TokenValue {
 
             TokenValue::OpenParen => write!(f, "("),
             TokenValue::CloseParen => write!(f, ")"),
+
+            TokenValue::Identifier(val) => write!(f, "Identifier({})", val),
+
+            TokenValue::Debug => write!(f, "Debug"),
         }
     }
 }

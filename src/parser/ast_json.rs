@@ -28,15 +28,19 @@ impl JsonBuilder for ast::ExpressionNode {
                 op.value,
                 rhs.to_json()
             ),
+
+            ast::ExpressionValue::Debug(expr) => {
+                format!(r#"{{"type": "debug", "expr": {}}}"#, expr.to_json())
+            }
         }
     }
 }
 
-impl JsonBuilder for ast::BodyNode {
+impl JsonBuilder for ast::BlockNode {
     fn to_json(&self) -> String {
         let mut json = "".to_owned();
 
-        json.push_str(r#"{"type": "body", "statements": ["#);
+        json.push_str(r#"{"type": "block", "statements": ["#);
 
         let statements = self.get_statements();
 
