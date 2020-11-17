@@ -1,3 +1,6 @@
 /target
 /grammar.ebnf
 /input.cv
+*.o
+/program
+/debug.*
