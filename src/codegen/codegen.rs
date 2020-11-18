@@ -121,7 +121,7 @@ impl Codegen for ast::ExpressionNode {
             }
 
             ast::ExpressionValue::IntLiteral(int_val) => Some(BasicValueEnum::IntValue(
-                ctx.llvm_ctx.i64_type().const_int(int_val as u64, false),
+                ctx.llvm_ctx.i64_type().const_int(int_val as u64, true),
             )),
 
             ast::ExpressionValue::FloatLiteral(float_val) => Some(BasicValueEnum::FloatValue(
@@ -134,7 +134,9 @@ impl Codegen for ast::ExpressionNode {
 
             ast::ExpressionValue::StringLiteral(_) => unimplemented!(),
 
-            ast::ExpressionValue::CharLiteral(_) => unimplemented!(),
+            ast::ExpressionValue::CharLiteral(char) => Some(BasicValueEnum::IntValue(
+                ctx.llvm_ctx.i8_type().const_int(char as u64, false),
+            )),
 
             ast::ExpressionValue::Debug(expr_node) => {
                 let expr_val = expr_node.codegen(ctx).unwrap();
@@ -154,6 +156,17 @@ impl Codegen for ast::ExpressionNode {
                                     .into_function_value(),
                                 &[expr_val],
                                 "call_debug_bool",
+                            );
+                        } else if size == 8 {
+                            ctx.builder.build_call(
+                                ctx.symbol_table
+                                    .borrow()
+                                    .get("debug_char")
+                                    .unwrap()
+                                    .value
+                                    .into_function_value(),
+                                &[expr_val],
+                                "call_debug_char",
                             );
                         } else {
                             ctx.builder.build_call(
@@ -232,9 +245,71 @@ impl Codegen for ast::BlockNode {
     }
 }
 
+fn init_stdlib(ctx: &mut CodegenContext) {
+    // void debug_float(double out);
+    let debug_float_fn_type = ctx
+        .llvm_ctx
+        .void_type()
+        .fn_type(&[BasicTypeEnum::FloatType(ctx.llvm_ctx.f64_type())], false);
+
+    let debug_float_fn =
+        ctx.module
+            .add_function("debug_float", debug_float_fn_type, Some(Linkage::External));
+
+    ctx.symbol_table.borrow_mut().add(Symbol {
+        identifier: "debug_float".to_owned(),
+        value: AnyValueEnum::FunctionValue(debug_float_fn),
+    });
+
+    // void debug_int(int out);
+    let debug_int_fn_type = ctx
+        .llvm_ctx
+        .void_type()
+        .fn_type(&[BasicTypeEnum::IntType(ctx.llvm_ctx.i64_type())], false);
+
+    let debug_int_fn =
+        ctx.module
+            .add_function("debug_int", debug_int_fn_type, Some(Linkage::External));
+
+    ctx.symbol_table.borrow_mut().add(Symbol {
+        identifier: "debug_int".to_owned(),
+        value: AnyValueEnum::FunctionValue(debug_int_fn),
+    });
+
+    // void debug_bool(bool out);
+    let debug_bool_fn_type = ctx
+        .llvm_ctx
+        .void_type()
+        .fn_type(&[BasicTypeEnum::IntType(ctx.llvm_ctx.bool_type())], false);
+
+    let debug_bool_fn =
+        ctx.module
+            .add_function("debug_bool", debug_bool_fn_type, Some(Linkage::External));
+
+    ctx.symbol_table.borrow_mut().add(Symbol {
+        identifier: "debug_bool".to_owned(),
+        value: AnyValueEnum::FunctionValue(debug_bool_fn),
+    });
+
+    // void debug_char(char out);
+    let debug_char_fn_type = ctx
+        .llvm_ctx
+        .void_type()
+        .fn_type(&[BasicTypeEnum::IntType(ctx.llvm_ctx.i8_type())], false);
+
+    let debug_char_fn =
+        ctx.module
+            .add_function("debug_char", debug_char_fn_type, Some(Linkage::External));
+
+    ctx.symbol_table.borrow_mut().add(Symbol {
+        identifier: "debug_char".to_owned(),
+        value: AnyValueEnum::FunctionValue(debug_char_fn),
+    });
+}
+
 /// Creates the main function and generates IR for expressions
 pub fn codegen_program<'a>(program: ast::BlockNode) {
-    let mut root_symbol_table = SymbolTable::new();
+    let root_symbol_table = SymbolTable::new();
 
     let context = Context::create();
     let builder = context.create_builder();
@@ -247,53 +322,18 @@ pub fn codegen_program<'a>(program: ast::BlockNode) {
     let main_block = context.append_basic_block(main, "main_entry");
     builder.position_at_end(main_block);
 
-    // Initialize stdlib
-
-    // void debug_float(double out);
-    let debug_float_fn_type = context
-        .void_type()
-        .fn_type(&[BasicTypeEnum::FloatType(context.f64_type())], false);
-
-    let debug_float_fn =
-        module.add_function("debug_float", debug_float_fn_type, Some(Linkage::External));
-
-    root_symbol_table.add(Symbol {
-        identifier: "debug_float".to_owned(),
-        value: AnyValueEnum::FunctionValue(debug_float_fn),
-    });
-
-    // void debug_int(int out);
-    let debug_int_fn_type = context
-        .void_type()
-        .fn_type(&[BasicTypeEnum::IntType(context.i64_type())], false);
-
-    let debug_int_fn = module.add_function("debug_int", debug_int_fn_type, Some(Linkage::External));
-
-    root_symbol_table.add(Symbol {
-        identifier: "debug_int".to_owned(),
-        value: AnyValueEnum::FunctionValue(debug_int_fn),
-    });
-
-    // void debug_bool(bool out);
-    let debug_bool_fn_type = context
-        .void_type()
-        .fn_type(&[BasicTypeEnum::IntType(context.bool_type())], false);
-
-    let debug_bool_fn =
-        module.add_function("debug_bool", debug_bool_fn_type, Some(Linkage::External));
-
-    root_symbol_table.add(Symbol {
-        identifier: "debug_bool".to_owned(),
-        value: AnyValueEnum::FunctionValue(debug_bool_fn),
-    });
-
-    // Codegen program
+    // Codegen context
     let mut codegen_context = CodegenContext {
         builder: &builder,
         llvm_ctx: &context,
         module: &module,
         symbol_table: Rc::new(RefCell::new(root_symbol_table)),
     };
+
+    // Initialize stdlib
+    init_stdlib(&mut codegen_context);
+
+    // Codegen
     program.codegen(&mut codegen_context);
 
     // return void

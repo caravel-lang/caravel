@@ -12,3 +12,7 @@ void debug_float(double out) {
 void debug_bool(bool out) {
     printf("%s\n", out ? "true" : "false");
 }
+
+void debug_char(char out) {
+    printf("%c\n", out);
+}
