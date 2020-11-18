@@ -9,6 +9,7 @@ pub enum ExpressionValue {
     FloatLiteral(f64),
     StringLiteral(String),
     CharLiteral(char),
+    BoolLiteral(bool),
 
     BinaryOp(Rc<ExpressionNode>, Token, Rc<ExpressionNode>),
 

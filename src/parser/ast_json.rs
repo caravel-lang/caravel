@@ -8,19 +8,20 @@ impl JsonBuilder for ast::ExpressionNode {
     fn to_json(&self) -> String {
         match self.get_value() {
             ast::ExpressionValue::IntLiteral(val) => {
-                format!(r#"{{"type": "int_literal", "value": {}}}"#, val.to_string())
+                format!(r#"{{"type": "int_literal", "value": {}}}"#, val)
             }
-            ast::ExpressionValue::FloatLiteral(val) => format!(
-                r#"{{"type": "float_literal", "value": {}}}"#,
-                val.to_string()
-            ),
+            ast::ExpressionValue::FloatLiteral(val) => {
+                format!(r#"{{"type": "float_literal", "value": {}}}"#, val)
+            }
             ast::ExpressionValue::StringLiteral(val) => {
                 format!(r#"{{"type": "string_literal", "value": "{}"}}"#, val)
             }
-            ast::ExpressionValue::CharLiteral(val) => format!(
-                r#"{{"type": "char_literal", "value": "{}"}}"#,
-                val.to_string()
-            ),
+            ast::ExpressionValue::CharLiteral(val) => {
+                format!(r#"{{"type": "char_literal", "value": "{}"}}"#, val)
+            }
+            ast::ExpressionValue::BoolLiteral(val) => {
+                format!(r#"{{"type": "bool_literal", "value": "{}"}}"#, val)
+            }
 
             ast::ExpressionValue::BinaryOp(lhs, op, rhs) => format!(
                 r#"{{"type": "binary_op", "lhs": {}, "op": "{}", "rhs": {}}}"#,

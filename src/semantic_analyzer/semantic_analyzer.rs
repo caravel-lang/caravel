@@ -1,4 +1,5 @@
 use crate::compilation_error::CompilationError;
+use crate::lexer::token::TokenValueKind;
 use crate::parser::ast;
 use crate::parser::ast::{ExpressionValue, ExpressionValueKind};
 use crate::position::Position;
@@ -18,6 +19,10 @@ impl SemanticAnalysis for ast::ExpressionNode {
                     return Err(CompilationError::new("Type mismatch", Position::pre(), 1));
                 }
 
+                if op.value.get_kind() == TokenValueKind::Equals {
+                    return Ok(ExpressionValueKind::BoolLiteral);
+                }
+
                 lhs_ty
             }
 
@@ -25,6 +30,7 @@ impl SemanticAnalysis for ast::ExpressionNode {
             ExpressionValue::FloatLiteral(_) => ExpressionValueKind::FloatLiteral,
             ExpressionValue::StringLiteral(_) => ExpressionValueKind::StringLiteral,
             ExpressionValue::CharLiteral(_) => ExpressionValueKind::CharLiteral,
+            ExpressionValue::BoolLiteral(_) => ExpressionValueKind::BoolLiteral,
 
             ExpressionValue::Debug(expr) => ExpressionValueKind::from(expr.get_value()),
             ExpressionValue::Assignment(_, expr) => ExpressionValueKind::from(expr.get_value()),

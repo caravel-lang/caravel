@@ -10,5 +10,5 @@ void debug_float(double out) {
 }
 
 void debug_bool(bool out) {
-    printf("%s", out ? "true" : "false");
+    printf("%s\n", out ? "true" : "false");
 }

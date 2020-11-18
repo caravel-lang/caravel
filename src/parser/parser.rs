@@ -233,6 +233,7 @@ impl Parser {
     ///      | CHAR_LITERAL
     ///      | '(' expression ')'
     ///      | IDENTIFIER
+    ///      | TRUE | FALSE
     fn parse_leaf(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
         if self.eat_if_match(vec![
             TokenValueKind::IntLiteral,
@@ -240,6 +241,8 @@ impl Parser {
             TokenValueKind::StringLiteral,
             TokenValueKind::CharLiteral,
             TokenValueKind::Identifier,
+            TokenValueKind::True,
+            TokenValueKind::False,
         ])? {
             let expr_value = match self.get_token()?.value {
                 TokenValue::IntLiteral(val) => ast::ExpressionValue::IntLiteral(val),
@@ -247,6 +250,8 @@ impl Parser {
                 TokenValue::StringLiteral(val) => ast::ExpressionValue::StringLiteral(val),
                 TokenValue::CharLiteral(val) => ast::ExpressionValue::CharLiteral(val),
                 TokenValue::Identifier(ident) => ast::ExpressionValue::Identifier(ident),
+                TokenValue::True => ast::ExpressionValue::BoolLiteral(true),
+                TokenValue::False => ast::ExpressionValue::BoolLiteral(false),
 
                 _ => unreachable!(),
             };

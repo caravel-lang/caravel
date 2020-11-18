@@ -6,16 +6,16 @@ use inkwell::context::Context;
 use inkwell::module::Linkage;
 use inkwell::module::Module;
 use inkwell::targets::{
-    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine, TargetTriple,
+    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
 };
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{AnyValueEnum, BasicValueEnum};
+use inkwell::IntPredicate;
 use inkwell::OptimizationLevel;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::path::Path;
 
-struct CodegenContext<'a, 'ct> {
+pub struct CodegenContext<'a, 'ct> {
     llvm_ctx: &'ct Context,
     module: &'a Module<'ct>,
     builder: &'a Builder<'ct>,
@@ -66,6 +66,14 @@ impl Codegen for ast::ExpressionNode {
                                     .builder
                                     .build_int_signed_rem(lhs_val, rhs_val, "int_mod");
                                 BasicValueEnum::IntValue(result)
+                            }
+                            TokenValue::Equals => {
+                                BasicValueEnum::IntValue(ctx.builder.build_int_compare(
+                                    IntPredicate::EQ,
+                                    lhs_val,
+                                    rhs_val,
+                                    "int_eq",
+                                ))
                             }
 
                             _ => unreachable!(),
@@ -118,20 +126,43 @@ impl Codegen for ast::ExpressionNode {
                 ctx.llvm_ctx.f64_type().const_float(float_val),
             )),
 
+            ast::ExpressionValue::BoolLiteral(val) => Some(BasicValueEnum::IntValue(
+                ctx.llvm_ctx.bool_type().const_int(val as u64, false),
+            )),
+
+            ast::ExpressionValue::StringLiteral(_) => unimplemented!(),
+
+            ast::ExpressionValue::CharLiteral(_) => unimplemented!(),
+
             ast::ExpressionValue::Debug(expr_node) => {
                 let expr_val = expr_node.codegen(ctx).unwrap();
 
                 match expr_val {
                     BasicValueEnum::IntValue(_) => {
-                        ctx.builder.build_call(
-                            ctx.symbol_table
-                                .get("debug_int")
-                                .unwrap()
-                                .value
-                                .into_function_value(),
-                            &[expr_val],
-                            "call_debug_int",
-                        );
+                        let size = expr_val.get_type().into_int_type().get_bit_width();
+
+                        // Is boolean?
+                        if size == 1 {
+                            ctx.builder.build_call(
+                                ctx.symbol_table
+                                    .get("debug_bool")
+                                    .unwrap()
+                                    .value
+                                    .into_function_value(),
+                                &[expr_val],
+                                "call_debug_bool",
+                            );
+                        } else {
+                            ctx.builder.build_call(
+                                ctx.symbol_table
+                                    .get("debug_int")
+                                    .unwrap()
+                                    .value
+                                    .into_function_value(),
+                                &[expr_val],
+                                "call_debug_int",
+                            );
+                        }
                     }
                     BasicValueEnum::FloatValue(_) => {
                         ctx.builder.build_call(
@@ -166,8 +197,6 @@ impl Codegen for ast::ExpressionNode {
                 BasicValueEnum::try_from(ctx.symbol_table.get(&identifier[..]).unwrap().value)
                     .unwrap(),
             ),
-
-            _ => unreachable!(),
         }
     }
 }
@@ -222,6 +251,19 @@ pub fn codegen_program<'a>(program: ast::BlockNode) {
     root_symbol_table.add(Symbol {
         identifier: "debug_int".to_owned(),
         value: AnyValueEnum::FunctionValue(debug_int_fn),
+    });
+
+    // void debug_bool(bool out);
+    let debug_bool_fn_type = context
+        .void_type()
+        .fn_type(&[BasicTypeEnum::IntType(context.bool_type())], false);
+
+    let debug_bool_fn =
+        module.add_function("debug_bool", debug_bool_fn_type, Some(Linkage::External));
+
+    root_symbol_table.add(Symbol {
+        identifier: "debug_bool".to_owned(),
+        value: AnyValueEnum::FunctionValue(debug_bool_fn),
     });
 
     // Codegen program
