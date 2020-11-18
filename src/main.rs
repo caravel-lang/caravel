@@ -19,6 +19,7 @@ use semantic_analyzer::semantic_analyzer::SemanticAnalysis;
 use std::env;
 use std::fs;
 use std::process;
+use std::rc::Rc;
 
 fn print_error(e: CompilationError, input: &str) {
     print::print_message_with_context(

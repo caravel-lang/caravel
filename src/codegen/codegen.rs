@@ -12,14 +12,16 @@ use inkwell::types::BasicTypeEnum;
 use inkwell::values::{AnyValueEnum, BasicValueEnum};
 use inkwell::IntPredicate;
 use inkwell::OptimizationLevel;
+use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::path::Path;
+use std::rc::Rc;
 
 pub struct CodegenContext<'a, 'ct> {
     llvm_ctx: &'ct Context,
     module: &'a Module<'ct>,
     builder: &'a Builder<'ct>,
-    symbol_table: &'a mut SymbolTable<'a>,
+    symbol_table: Rc<RefCell<SymbolTable<'a>>>,
 }
 
 pub trait Codegen {
@@ -145,6 +147,7 @@ impl Codegen for ast::ExpressionNode {
                         if size == 1 {
                             ctx.builder.build_call(
                                 ctx.symbol_table
+                                    .borrow()
                                     .get("debug_bool")
                                     .unwrap()
                                     .value
@@ -155,6 +158,7 @@ impl Codegen for ast::ExpressionNode {
                         } else {
                             ctx.builder.build_call(
                                 ctx.symbol_table
+                                    .borrow()
                                     .get("debug_int")
                                     .unwrap()
                                     .value
@@ -167,6 +171,7 @@ impl Codegen for ast::ExpressionNode {
                     BasicValueEnum::FloatValue(_) => {
                         ctx.builder.build_call(
                             ctx.symbol_table
+                                .borrow()
                                 .get("debug_float")
                                 .unwrap()
                                 .value
@@ -185,7 +190,7 @@ impl Codegen for ast::ExpressionNode {
             ast::ExpressionValue::Assignment(identifier, expr) => {
                 let expr_val = expr.codegen(ctx).unwrap();
 
-                ctx.symbol_table.add(Symbol {
+                ctx.symbol_table.borrow_mut().add(Symbol {
                     identifier,
                     value: AnyValueEnum::from(expr_val),
                 });
@@ -194,8 +199,14 @@ impl Codegen for ast::ExpressionNode {
             }
 
             ast::ExpressionValue::Identifier(identifier) => Some(
-                BasicValueEnum::try_from(ctx.symbol_table.get(&identifier[..]).unwrap().value)
-                    .unwrap(),
+                BasicValueEnum::try_from(
+                    ctx.symbol_table
+                        .borrow()
+                        .get(&identifier[..])
+                        .unwrap()
+                        .value,
+                )
+                .unwrap(),
             ),
         }
     }
@@ -203,8 +214,18 @@ impl Codegen for ast::ExpressionNode {
 
 impl Codegen for ast::BlockNode {
     fn codegen<'a, 'ct>(&self, ctx: &mut CodegenContext<'a, 'ct>) -> Option<BasicValueEnum<'a>> {
+        // Clone the reference, not the whole table
+        let block_symbol_table = SymbolTable::from_parent(ctx.symbol_table.clone());
+
+        let mut new_ctx = CodegenContext {
+            symbol_table: Rc::new(RefCell::new(block_symbol_table)),
+            llvm_ctx: ctx.llvm_ctx,
+            builder: ctx.builder,
+            module: ctx.module,
+        };
+
         for statement in self.get_statements() {
-            statement.codegen(ctx);
+            statement.codegen(&mut new_ctx);
         }
 
         None
@@ -271,7 +292,7 @@ pub fn codegen_program<'a>(program: ast::BlockNode) {
         builder: &builder,
         llvm_ctx: &context,
         module: &module,
-        symbol_table: &mut root_symbol_table,
+        symbol_table: Rc::new(RefCell::new(root_symbol_table)),
     };
     program.codegen(&mut codegen_context);
 

@@ -1,5 +1,7 @@
 use inkwell::values::AnyValueEnum;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct Symbol<'a> {
@@ -9,7 +11,7 @@ pub struct Symbol<'a> {
 
 #[derive(Clone)]
 pub struct SymbolTable<'a> {
-    parent: Option<Box<SymbolTable<'a>>>,
+    parent: Option<Rc<RefCell<SymbolTable<'a>>>>,
     symbols: HashMap<String, Symbol<'a>>,
 }
 
@@ -21,9 +23,9 @@ impl<'a> SymbolTable<'a> {
         }
     }
 
-    pub fn new_child(self) -> Self {
+    pub fn from_parent(parent: Rc<RefCell<Self>>) -> Self {
         Self {
-            parent: Some(Box::new(self)),
+            parent: Some(parent),
             symbols: HashMap::new(),
         }
     }
@@ -32,7 +34,7 @@ impl<'a> SymbolTable<'a> {
         match self.symbols.get(identifier) {
             Some(symbol) => Some(symbol.clone()),
             None => match self.parent.clone() {
-                Some(parent) => parent.get(identifier),
+                Some(parent) => parent.borrow().get(identifier),
                 None => None,
             },
         }
@@ -40,9 +42,5 @@ impl<'a> SymbolTable<'a> {
 
     pub fn add(&mut self, symbol: Symbol<'a>) {
         self.symbols.insert(symbol.identifier.clone(), symbol);
-    }
-
-    pub fn add_symbols(&mut self, symbols: HashMap<String, Symbol<'a>>) {
-        self.symbols.extend(symbols);
     }
 }
