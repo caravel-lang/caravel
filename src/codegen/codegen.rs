@@ -11,30 +11,27 @@ use inkwell::targets::{
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{AnyValueEnum, BasicValueEnum};
 use inkwell::OptimizationLevel;
+use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::path::Path;
 
+struct CodegenContext<'a, 'ct> {
+    llvm_ctx: &'ct Context,
+    module: &'a Module<'ct>,
+    builder: &'a Builder<'ct>,
+    symbol_table: &'a mut SymbolTable<'a>,
+}
+
 pub trait Codegen {
-    fn codegen<'a: 'b, 'b>(
-        &self,
-        symbol_table: &'a SymbolTable,
-        context: &'a Context,
-        module: &Module<'a>,
-        builder: &'a Builder<'a>,
-    ) -> Option<BasicValueEnum<'b>>;
+    fn codegen<'a, 'ct>(&self, ctx: &mut CodegenContext<'a, 'ct>) -> Option<BasicValueEnum<'a>>;
 }
 
 impl Codegen for ast::ExpressionNode {
-    fn codegen<'a: 'b, 'b>(
-        &self,
-        symbol_table: &'a SymbolTable,
-        context: &'a Context,
-        module: &Module<'a>,
-        builder: &'a Builder<'a>,
-    ) -> Option<BasicValueEnum<'b>> {
+    fn codegen<'a, 'ct>(&self, ctx: &mut CodegenContext<'a, 'ct>) -> Option<BasicValueEnum<'a>> {
         match self.get_value() {
             ast::ExpressionValue::BinaryOp(lhs, op, rhs) => {
-                let lhs_val_wrapper = lhs.codegen(symbol_table, context, module, builder).unwrap();
-                let rhs_val_wrapper = rhs.codegen(symbol_table, context, module, builder).unwrap();
+                let lhs_val_wrapper = lhs.codegen(ctx).unwrap();
+                let rhs_val_wrapper = rhs.codegen(ctx).unwrap();
 
                 let ty = lhs_val_wrapper.get_type();
                 if ty != rhs_val_wrapper.get_type() {
@@ -47,25 +44,27 @@ impl Codegen for ast::ExpressionNode {
                         let rhs_val = rhs_val_wrapper.into_int_value();
                         match op.value {
                             TokenValue::Addition => {
-                                let result = builder.build_int_add(lhs_val, rhs_val, "int_add");
+                                let result = ctx.builder.build_int_add(lhs_val, rhs_val, "int_add");
                                 BasicValueEnum::IntValue(result)
                             }
                             TokenValue::Subtraction => {
-                                let result = builder.build_int_sub(lhs_val, rhs_val, "int_sub");
+                                let result = ctx.builder.build_int_sub(lhs_val, rhs_val, "int_sub");
                                 BasicValueEnum::IntValue(result)
                             }
                             TokenValue::Multiplication => {
-                                let result = builder.build_int_mul(lhs_val, rhs_val, "int_mul");
+                                let result = ctx.builder.build_int_mul(lhs_val, rhs_val, "int_mul");
                                 BasicValueEnum::IntValue(result)
                             }
                             TokenValue::Division => {
-                                let result =
-                                    builder.build_int_unsigned_div(lhs_val, rhs_val, "int_div");
+                                let result = ctx
+                                    .builder
+                                    .build_int_unsigned_div(lhs_val, rhs_val, "int_div");
                                 BasicValueEnum::IntValue(result)
                             }
                             TokenValue::Modulo => {
-                                let result =
-                                    builder.build_int_signed_rem(lhs_val, rhs_val, "int_mod");
+                                let result = ctx
+                                    .builder
+                                    .build_int_signed_rem(lhs_val, rhs_val, "int_mod");
                                 BasicValueEnum::IntValue(result)
                             }
 
@@ -78,23 +77,28 @@ impl Codegen for ast::ExpressionNode {
                         let rhs_val = rhs_val_wrapper.into_float_value();
                         match op.value {
                             TokenValue::Addition => {
-                                let result = builder.build_float_add(lhs_val, rhs_val, "float_add");
+                                let result =
+                                    ctx.builder.build_float_add(lhs_val, rhs_val, "float_add");
                                 BasicValueEnum::FloatValue(result)
                             }
                             TokenValue::Subtraction => {
-                                let result = builder.build_float_sub(lhs_val, rhs_val, "float_sub");
+                                let result =
+                                    ctx.builder.build_float_sub(lhs_val, rhs_val, "float_sub");
                                 BasicValueEnum::FloatValue(result)
                             }
                             TokenValue::Multiplication => {
-                                let result = builder.build_float_mul(lhs_val, rhs_val, "float_mul");
+                                let result =
+                                    ctx.builder.build_float_mul(lhs_val, rhs_val, "float_mul");
                                 BasicValueEnum::FloatValue(result)
                             }
                             TokenValue::Division => {
-                                let result = builder.build_float_div(lhs_val, rhs_val, "float_div");
+                                let result =
+                                    ctx.builder.build_float_div(lhs_val, rhs_val, "float_div");
                                 BasicValueEnum::FloatValue(result)
                             }
                             TokenValue::Modulo => {
-                                let result = builder.build_float_rem(lhs_val, rhs_val, "float_mod");
+                                let result =
+                                    ctx.builder.build_float_rem(lhs_val, rhs_val, "float_mod");
                                 BasicValueEnum::FloatValue(result)
                             }
 
@@ -107,22 +111,20 @@ impl Codegen for ast::ExpressionNode {
             }
 
             ast::ExpressionValue::IntLiteral(int_val) => Some(BasicValueEnum::IntValue(
-                context.i64_type().const_int(int_val as u64, false),
+                ctx.llvm_ctx.i64_type().const_int(int_val as u64, false),
             )),
 
             ast::ExpressionValue::FloatLiteral(float_val) => Some(BasicValueEnum::FloatValue(
-                context.f64_type().const_float(float_val),
+                ctx.llvm_ctx.f64_type().const_float(float_val),
             )),
 
             ast::ExpressionValue::Debug(expr_node) => {
-                let expr_val = expr_node
-                    .codegen(symbol_table, context, module, builder)
-                    .unwrap();
+                let expr_val = expr_node.codegen(ctx).unwrap();
 
                 match expr_val {
                     BasicValueEnum::IntValue(_) => {
-                        builder.build_call(
-                            symbol_table
+                        ctx.builder.build_call(
+                            ctx.symbol_table
                                 .get("debug_int")
                                 .unwrap()
                                 .value
@@ -132,8 +134,8 @@ impl Codegen for ast::ExpressionNode {
                         );
                     }
                     BasicValueEnum::FloatValue(_) => {
-                        builder.build_call(
-                            symbol_table
+                        ctx.builder.build_call(
+                            ctx.symbol_table
                                 .get("debug_float")
                                 .unwrap()
                                 .value
@@ -149,20 +151,31 @@ impl Codegen for ast::ExpressionNode {
                 None
             }
 
+            ast::ExpressionValue::Assignment(identifier, expr) => {
+                let expr_val = expr.codegen(ctx).unwrap();
+
+                ctx.symbol_table.add(Symbol {
+                    identifier,
+                    value: AnyValueEnum::from(expr_val),
+                });
+
+                Some(expr_val)
+            }
+
+            ast::ExpressionValue::Identifier(identifier) => Some(
+                BasicValueEnum::try_from(ctx.symbol_table.get(&identifier[..]).unwrap().value)
+                    .unwrap(),
+            ),
+
             _ => unreachable!(),
         }
     }
 }
+
 impl Codegen for ast::BlockNode {
-    fn codegen<'a: 'b, 'b>(
-        &self,
-        symbol_table: &'a SymbolTable,
-        context: &'a Context,
-        module: &Module<'a>,
-        builder: &'a Builder<'a>,
-    ) -> Option<BasicValueEnum<'b>> {
+    fn codegen<'a, 'ct>(&self, ctx: &mut CodegenContext<'a, 'ct>) -> Option<BasicValueEnum<'a>> {
         for statement in self.get_statements() {
-            statement.codegen(symbol_table, context, module, builder);
+            statement.codegen(ctx);
         }
 
         None
@@ -212,7 +225,13 @@ pub fn codegen_program<'a>(program: ast::BlockNode) {
     });
 
     // Codegen program
-    program.codegen(&root_symbol_table, &context, &module, &builder);
+    let mut codegen_context = CodegenContext {
+        builder: &builder,
+        llvm_ctx: &context,
+        module: &module,
+        symbol_table: &mut root_symbol_table,
+    };
+    program.codegen(&mut codegen_context);
 
     // return void
     builder.build_return(None);

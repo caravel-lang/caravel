@@ -27,6 +27,9 @@ impl SemanticAnalysis for ast::ExpressionNode {
             ExpressionValue::CharLiteral(_) => ExpressionValueKind::CharLiteral,
 
             ExpressionValue::Debug(expr) => ExpressionValueKind::from(expr.get_value()),
+            ExpressionValue::Assignment(_, expr) => ExpressionValueKind::from(expr.get_value()),
+
+            ExpressionValue::Identifier(_) => ExpressionValueKind::Identifier,
         })
     }
 }

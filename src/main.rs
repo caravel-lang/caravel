@@ -82,7 +82,7 @@ fn main() {
 
     print::print_message("Saved AST json", print::Status::Ok);
 
-    block_node.analyze_semantics();
+    block_node.analyze_semantics().unwrap();
     codegen_program(block_node);
 
     print::print_message(

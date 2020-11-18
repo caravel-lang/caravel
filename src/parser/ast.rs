@@ -13,6 +13,9 @@ pub enum ExpressionValue {
     BinaryOp(Rc<ExpressionNode>, Token, Rc<ExpressionNode>),
 
     Debug(Rc<ExpressionNode>),
+    Assignment(String, Rc<ExpressionNode>),
+
+    Identifier(String),
 }
 
 #[derive(Clone)]

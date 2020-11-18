@@ -41,4 +41,8 @@ impl<'a> SymbolTable<'a> {
     pub fn add(&mut self, symbol: Symbol<'a>) {
         self.symbols.insert(symbol.identifier.clone(), symbol);
     }
+
+    pub fn add_symbols(&mut self, symbols: HashMap<String, Symbol<'a>>) {
+        self.symbols.extend(symbols);
+    }
 }

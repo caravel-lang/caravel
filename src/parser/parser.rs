@@ -105,11 +105,12 @@ impl Parser {
         Ok(ast::BlockNode::new(statements))
     }
 
-    /// expression = term | debug_stmt
+    /// expression = comparison | debug_stmt | assignment
     fn parse_expression(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
         match self.peek()?.value {
             TokenValue::Debug => self.parse_debug_stmt(),
-            _ => self.parse_term(),
+            TokenValue::Let => self.parse_assignment(),
+            _ => self.parse_comparison(),
         }
     }
 
@@ -122,6 +123,49 @@ impl Parser {
         Ok(ast::ExpressionNode::new(ast::ExpressionValue::Debug(
             Rc::new(expr),
         )))
+    }
+
+    /// assignment = LET IDENTIFIER ASSIGNMENT expression
+    fn parse_assignment(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
+        self.eat_expect(TokenValueKind::Let)?;
+
+        let identifier = match self.eat()?.value {
+            TokenValue::Identifier(ident) => ident,
+            _ => {
+                return Err(CompilationError::new(
+                    "Expected identifier.",
+                    Position::pre(),
+                    1,
+                ))
+            }
+        };
+
+        self.eat_expect(TokenValueKind::Assignment)?;
+
+        let expr = self.parse_expression()?;
+
+        Ok(ast::ExpressionNode::new(ast::ExpressionValue::Assignment(
+            identifier,
+            Rc::new(expr),
+        )))
+    }
+
+    /// comparison = term (EQUALS term)*
+    fn parse_comparison(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
+        let mut lhs = self.parse_term()?;
+
+        while self.eat_if_match(vec![TokenValueKind::Equals])? {
+            let op = self.get_token()?;
+            let rhs = self.parse_term()?;
+
+            lhs = ast::ExpressionNode::new(ast::ExpressionValue::BinaryOp(
+                Rc::new(lhs.clone()),
+                op,
+                Rc::new(rhs),
+            ));
+        }
+
+        Ok(lhs)
     }
 
     /// term = factor (('+' | '-') factor)*
@@ -188,18 +232,21 @@ impl Parser {
     ///      | STRING_LITERAL
     ///      | CHAR_LITERAL
     ///      | '(' expression ')'
+    ///      | IDENTIFIER
     fn parse_leaf(&mut self) -> Result<ast::ExpressionNode, CompilationError> {
         if self.eat_if_match(vec![
             TokenValueKind::IntLiteral,
             TokenValueKind::FloatLiteral,
             TokenValueKind::StringLiteral,
             TokenValueKind::CharLiteral,
+            TokenValueKind::Identifier,
         ])? {
             let expr_value = match self.get_token()?.value {
                 TokenValue::IntLiteral(val) => ast::ExpressionValue::IntLiteral(val),
                 TokenValue::FloatLiteral(val) => ast::ExpressionValue::FloatLiteral(val),
                 TokenValue::StringLiteral(val) => ast::ExpressionValue::StringLiteral(val),
                 TokenValue::CharLiteral(val) => ast::ExpressionValue::CharLiteral(val),
+                TokenValue::Identifier(ident) => ast::ExpressionValue::Identifier(ident),
 
                 _ => unreachable!(),
             };

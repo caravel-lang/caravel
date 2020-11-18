@@ -11,6 +11,8 @@ pub enum TokenValue {
     CharLiteral(char),
     IntLiteral(i64),
     FloatLiteral(f64),
+    True,
+    False,
 
     // Arithmetic operations
     Addition,
@@ -23,8 +25,10 @@ pub enum TokenValue {
     // Logical operations
 
     // Assignment operations
+    Assignment,
 
     // Comparison operators
+    Equals,
 
     // Relational operators
 
@@ -39,6 +43,7 @@ pub enum TokenValue {
 
     // Keywords
     Debug,
+    Let,
 }
 
 impl TokenValue {
@@ -54,6 +59,8 @@ impl fmt::Display for TokenValue {
             TokenValue::CharLiteral(char) => write!(f, "CharLiteral({})", char),
             TokenValue::IntLiteral(val) => write!(f, "IntLiteral({})", val),
             TokenValue::FloatLiteral(val) => write!(f, "FloatLiteral({})", val),
+            TokenValue::True => write!(f, "True"),
+            TokenValue::False => write!(f, "False"),
 
             TokenValue::Addition => write!(f, "Addition"),
             TokenValue::Subtraction => write!(f, "Subtraction"),
@@ -61,6 +68,10 @@ impl fmt::Display for TokenValue {
             TokenValue::Division => write!(f, "Division"),
             TokenValue::Exponentiation => write!(f, "Exponentiation"),
             TokenValue::Modulo => write!(f, "Modulo"),
+
+            TokenValue::Assignment => write!(f, "Assignment"),
+
+            TokenValue::Equals => write!(f, "Equals"),
 
             TokenValue::EOL => write!(f, "<EOL>"),
 
@@ -70,6 +81,7 @@ impl fmt::Display for TokenValue {
             TokenValue::Identifier(val) => write!(f, "Identifier({})", val),
 
             TokenValue::Debug => write!(f, "Debug"),
+            TokenValue::Let => write!(f, "Let"),
         }
     }
 }

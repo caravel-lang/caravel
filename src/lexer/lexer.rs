@@ -150,6 +150,15 @@ impl Lexer {
             '%' => TokenValue::Modulo,
             '^' => TokenValue::Exponentiation,
 
+            '=' => {
+                if self.peek()? == '=' {
+                    self.eat()?;
+                    TokenValue::Equals
+                } else {
+                    TokenValue::Assignment
+                }
+            }
+
             '(' => TokenValue::OpenParen,
             ')' => TokenValue::CloseParen,
 
@@ -261,6 +270,9 @@ impl Lexer {
 
         let tok_val = match &identifier[..] {
             "debug" => TokenValue::Debug,
+            "let" => TokenValue::Let,
+            "true" => TokenValue::True,
+            "false" => TokenValue::False,
 
             _ => TokenValue::Identifier(identifier.clone()),
         };

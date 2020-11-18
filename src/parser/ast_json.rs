@@ -32,6 +32,15 @@ impl JsonBuilder for ast::ExpressionNode {
             ast::ExpressionValue::Debug(expr) => {
                 format!(r#"{{"type": "debug", "expr": {}}}"#, expr.to_json())
             }
+            ast::ExpressionValue::Assignment(ident, expr) => format!(
+                r#"{{"type": "assignment", "identifier": "{}", "expr": {}}}"#,
+                ident,
+                expr.to_json()
+            ),
+
+            ast::ExpressionValue::Identifier(ident) => {
+                format!(r#"{{"type": "identifier", "identifier": "{}"}}"#, ident)
+            }
         }
     }
 }
