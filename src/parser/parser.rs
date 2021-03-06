@@ -1,6 +1,5 @@
-use super::ast::{Factor, Leaf, Term};
+use super::ast::*;
 use crate::lexer::token::{Token, TokenType};
-use std::boxed::Box;
 
 pub struct Parser {
   tokens: Vec<Token>,
@@ -12,16 +11,20 @@ impl Parser {
     Self { tokens, index: 0 }
   }
 
-  pub fn parse(mut self) -> Term {
+  pub fn parse(mut self) -> Expression {
     // while self.index < self.tokens.len() as u32 {
     //   println!("{:?}", self.eat())
     // }
-    self.parse_term()
+    self.parse_expression()
   }
 
   // Helpers
   fn get(&self) -> Token {
     self.tokens[self.index as usize].clone()
+  }
+
+  fn peek(&self) -> Token {
+    self.tokens[self.index as usize + 1].clone()
   }
 
   fn eat(&mut self) -> Token {
@@ -31,7 +34,82 @@ impl Parser {
   }
 
   // Parse functions
-  // term : factor ( ( '+' | '-' ) factor )*
+  // expression : assignment
+  fn parse_expression(&mut self) -> Expression {
+    match self.get().token_type {
+      TokenType::LBracket => Expression::Block(self.parse_block()),
+      _ => Expression::Assignment(self.parse_assignment()),
+    }
+  }
+
+  // block : '{' (((expression)? EOL)* | expression) '}'
+  fn parse_block(&mut self) -> Block {
+    self.eat();
+
+    let mut expressions = Vec::new();
+    loop {
+      match self.get().token_type {
+        TokenType::RBracket => break,
+        // Allow empty lines
+        TokenType::Eol => {
+          self.eat();
+          continue;
+        }
+        _ => (),
+      };
+
+      expressions.push(self.parse_expression());
+
+      match self.eat().token_type {
+        TokenType::Eol => (),
+        // Allow single line blocks
+        TokenType::RBracket => break,
+        _ => panic!("Unexpected token"),
+      }
+    }
+
+    expressions
+  }
+
+  // assignment : (let)? identifier '=' term | term
+  fn parse_assignment(&mut self) -> Assignment {
+    let has_let = match self.get().token_type {
+      TokenType::Let => {
+        self.eat();
+        true
+      }
+      TokenType::Identifier(_) => false,
+      _ => return Assignment::Term(self.parse_term()),
+    };
+
+    match self.peek().token_type {
+      TokenType::Assignment => (),
+      _ => {
+        if !has_let {
+          return Assignment::Term(self.parse_term());
+        }
+      }
+    };
+
+    let identifier = match self.eat().token_type.clone() {
+      TokenType::Identifier(val) => val,
+      _ => panic!("Unexpected token"),
+    };
+
+    match self.eat().token_type {
+      TokenType::Assignment => (),
+      _ => return Assignment::Declaration(identifier),
+    };
+
+    let rhs = self.parse_term();
+
+    match has_let {
+      true => Assignment::Assignment(identifier, rhs),
+      false => Assignment::Reassignment(identifier, rhs),
+    }
+  }
+
+  // term : factor (('+' | '-') factor)*
   fn parse_term(&mut self) -> Term {
     let mut term = Term::Factor(self.parse_factor());
 
@@ -42,13 +120,13 @@ impl Parser {
       };
 
       let rhs = self.parse_factor();
-      term = Term::Operation(Box::new(term), op, rhs);
+      term = Term::Operation(Box::new(term), op.clone(), rhs);
     }
 
     term
   }
 
-  // factor : leaf ( ( '*' | '/' | '%' ) leaf )*
+  // factor : leaf (('*' | '/' | '%') leaf)*
   fn parse_factor(&mut self) -> Factor {
     let mut factor = Factor::Leaf(self.parse_leaf());
 
@@ -59,7 +137,7 @@ impl Parser {
       };
 
       let rhs = self.parse_leaf();
-      factor = Factor::Operation(Box::new(factor), op, rhs);
+      factor = Factor::Operation(Box::new(factor), op.clone(), rhs);
     }
 
     factor
@@ -72,6 +150,14 @@ impl Parser {
     match tok.token_type {
       TokenType::Identifier(value) => Leaf::Identifier(value),
       TokenType::FloatLiteral(value) => Leaf::FloatLiteral(value),
+      TokenType::LParen => {
+        let term = self.parse_term();
+        match self.eat().token_type {
+          TokenType::RParen => (),
+          _ => panic!("Unexpected token"),
+        };
+        Leaf::Term(Box::new(term))
+      }
       _ => panic!("Unexpected token"),
     }
   }

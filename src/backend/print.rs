@@ -1,11 +1,11 @@
 use crate::lexer::token::TokenType;
-use crate::parser::ast::{Factor, Leaf, Term};
+use crate::parser::ast::*;
 use std::convert::From;
 
 /// Display AST as a tree
-pub fn print(term: Term) {
-  let node = &term.into();
-  print_tree(node, String::new(), true);
+pub fn print(expression: &Expression) {
+  let node = expression.into();
+  print_tree(&node, String::new(), true);
 }
 
 // Adapted from https://vallentin.dev/2019/05/14/pretty-print-tree
@@ -14,8 +14,41 @@ enum Node {
   Tree(String, Vec<Node>),
 }
 
-impl From<Term> for Node {
-  fn from(term: Term) -> Self {
+impl From<&Expression> for Node {
+  fn from(expression: &Expression) -> Self {
+    match expression {
+      Expression::Assignment(assignment) => assignment.into(),
+      Expression::Block(block) => block.into(),
+    }
+  }
+}
+
+impl From<&Block> for Node {
+  fn from(block: &Block) -> Self {
+    let expressions = block.iter().map(|expr| expr.into()).collect();
+    Node::Tree("Block".to_owned(), expressions)
+  }
+}
+
+impl From<&Assignment> for Node {
+  fn from(assignment: &Assignment) -> Self {
+    match assignment {
+      Assignment::Assignment(identifier, rhs) => Self::Tree(
+        "Assig".to_owned(),
+        vec![Node::Leaf(identifier.to_owned()), rhs.into()],
+      ),
+      Assignment::Reassignment(identifier, rhs) => Self::Tree(
+        "Reass".to_owned(),
+        vec![Node::Leaf(identifier.to_owned()), rhs.into()],
+      ),
+      Assignment::Term(term) => term.into(),
+      Assignment::Declaration(identifier) => Self::Leaf("Decl ".to_owned() + &identifier),
+    }
+  }
+}
+
+impl From<&Term> for Node {
+  fn from(term: &Term) -> Self {
     match term {
       Term::Factor(factor) => factor.into(),
       Term::Operation(lhs, op, rhs) => {
@@ -25,14 +58,14 @@ impl From<Term> for Node {
           _ => unreachable!(),
         };
 
-        Node::Tree(op_name.to_owned(), vec![Node::from(*lhs), rhs.into()])
+        Self::Tree(op_name.to_owned(), vec![Self::from(&**lhs), rhs.into()])
       }
     }
   }
 }
 
-impl From<Factor> for Node {
-  fn from(factor: Factor) -> Self {
+impl From<&Factor> for Node {
+  fn from(factor: &Factor) -> Self {
     match factor {
       Factor::Leaf(leaf) => leaf.into(),
       Factor::Operation(lhs, op, rhs) => {
@@ -43,17 +76,18 @@ impl From<Factor> for Node {
           _ => unreachable!(),
         };
 
-        Node::Tree(op_name.to_owned(), vec![Node::from(*lhs), rhs.into()])
+        Self::Tree(op_name.to_owned(), vec![Self::from(&**lhs), rhs.into()])
       }
     }
   }
 }
 
-impl From<Leaf> for Node {
-  fn from(leaf: Leaf) -> Self {
+impl From<&Leaf> for Node {
+  fn from(leaf: &Leaf) -> Self {
     match leaf {
-      Leaf::Identifier(val) => Node::Leaf(val),
-      Leaf::FloatLiteral(val) => Node::Leaf(val),
+      Leaf::Identifier(val) => Self::Leaf(val.to_owned()),
+      Leaf::FloatLiteral(val) => Self::Leaf(val.to_owned()),
+      Leaf::Term(term) => Self::from(&**term),
     }
   }
 }

@@ -38,6 +38,9 @@ impl Lexer {
           '%' => TokenType::Modulo,
           '(' => TokenType::LParen,
           ')' => TokenType::RParen,
+          '{' => TokenType::LBracket,
+          '}' => TokenType::RBracket,
+          '=' => TokenType::Assignment,
           _ => panic!("Unexpected character '{}'", self.get()),
         };
 

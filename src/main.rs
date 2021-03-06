@@ -14,7 +14,7 @@ fn main() {
     let tokens = lexer.lex();
 
     let parser = Parser::new(tokens);
-    let term = parser.parse();
+    let expression = parser.parse();
 
-    backend::print::print(term);
+    backend::print::print(&expression);
 }

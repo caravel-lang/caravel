@@ -20,6 +20,8 @@ pub enum TokenType {
 
   LParen,
   RParen,
+  RBracket,
+  LBracket,
 
   // Keywords
   Let,
