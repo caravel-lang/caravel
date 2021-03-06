@@ -12,10 +12,17 @@ pub enum TokenType {
   Subtract,
   Multiply,
   Divide,
-  Power,
   Modulo,
+  // Assignment Operators
+  Assignment,
 
   Eol,
+
+  LParen,
+  RParen,
+
+  // Keywords
+  Let,
 }
 
 #[derive(Clone, Debug)]

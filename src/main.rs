@@ -1,7 +1,10 @@
+pub mod backend;
 pub mod lexer;
+pub mod parser;
 pub mod position;
 
 use lexer::lexer::Lexer;
+use parser::parser::Parser;
 use std::fs;
 
 fn main() {
@@ -10,7 +13,8 @@ fn main() {
     let lexer = Lexer::new(&input);
     let tokens = lexer.lex();
 
-    tokens
-        .iter()
-        .for_each(|tok| println!("{:?}", tok.token_type));
+    let parser = Parser::new(tokens);
+    let term = parser.parse();
+
+    backend::print::print(term);
 }

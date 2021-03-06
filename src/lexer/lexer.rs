@@ -1,4 +1,4 @@
-use super::tokens::{Token, TokenType};
+use super::token::{Token, TokenType};
 use super::util;
 use crate::position::Position;
 
@@ -28,14 +28,27 @@ impl Lexer {
         self.parse_float_literal();
       } else if c == ' ' || c == '\t' {
         self.eat(); // Ignore whitespace
-      } else if c == '\n' {
-        self.eat();
-        self.add_token(TokenType::Eol, start_pos);
       } else {
-        println!("Unexpected character '{}'", self.eat());
+        let token_type = match c {
+          '\n' => TokenType::Eol,
+          '+' => TokenType::Add,
+          '-' => TokenType::Subtract,
+          '*' => TokenType::Multiply,
+          '/' => TokenType::Divide,
+          '%' => TokenType::Modulo,
+          '(' => TokenType::LParen,
+          ')' => TokenType::RParen,
+          _ => panic!("Unexpected character '{}'", self.get()),
+        };
+
+        self.eat();
+
+        self.add_token(token_type, start_pos);
       }
     }
 
+    // Always append an EOL
+    self.add_token(TokenType::Eol, self.pos.clone());
     self.tokens
   }
 
@@ -46,10 +59,6 @@ impl Lexer {
       .chars()
       .nth(self.pos.index as usize)
       .unwrap_or('\0')
-  }
-
-  fn peek(&self) -> char {
-    self.input.chars().nth(self.pos.index as usize + 1).unwrap()
   }
 
   fn eat(&mut self) -> char {
@@ -82,7 +91,12 @@ impl Lexer {
       value.push(self.eat());
     }
 
-    self.add_token(TokenType::Identifier(value), start_pos);
+    let token_type = match &value[..] {
+      "let" => TokenType::Let,
+      _ => TokenType::Identifier(value),
+    };
+
+    self.add_token(token_type, start_pos);
   }
 
   fn parse_float_literal(&mut self) {
