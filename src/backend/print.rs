@@ -3,8 +3,8 @@ use crate::parser::ast::*;
 use std::convert::From;
 
 /// Display AST as a tree
-pub fn print(expression: &Expression) {
-  let node = expression.into();
+pub fn print(block: &Block) {
+  let node = block.into();
   print_tree(&node, String::new(), true);
 }
 
@@ -33,16 +33,19 @@ impl From<&Block> for Node {
 impl From<&Assignment> for Node {
   fn from(assignment: &Assignment) -> Self {
     match assignment {
-      Assignment::Assignment(identifier, rhs) => Self::Tree(
+      Assignment::Assignment(identifier, typ, rhs) => Self::Tree(
         "Assig".to_owned(),
         vec![Node::Leaf(identifier.to_owned()), rhs.into()],
+      ),
+      Assignment::DefaultAssignment(identifier, typ) => Self::Tree(
+        "DeAssig".to_owned(),
+        vec![Node::Leaf(identifier.to_owned())],
       ),
       Assignment::Reassignment(identifier, rhs) => Self::Tree(
         "Reass".to_owned(),
         vec![Node::Leaf(identifier.to_owned()), rhs.into()],
       ),
       Assignment::Term(term) => term.into(),
-      Assignment::Declaration(identifier) => Self::Leaf("Decl ".to_owned() + &identifier),
     }
   }
 }
@@ -52,10 +55,9 @@ impl From<&Term> for Node {
     match term {
       Term::Factor(factor) => factor.into(),
       Term::Operation(lhs, op, rhs) => {
-        let op_name = match op.token_type {
-          TokenType::Add => "Add",
-          TokenType::Subtract => "Sub",
-          _ => unreachable!(),
+        let op_name = match op {
+          TermOp::Add => "Add",
+          TermOp::Subtract => "Sub",
         };
 
         Self::Tree(op_name.to_owned(), vec![Self::from(&**lhs), rhs.into()])
@@ -69,11 +71,10 @@ impl From<&Factor> for Node {
     match factor {
       Factor::Leaf(leaf) => leaf.into(),
       Factor::Operation(lhs, op, rhs) => {
-        let op_name = match op.token_type {
-          TokenType::Multiply => "Mul",
-          TokenType::Divide => "Div",
-          TokenType::Modulo => "Mod",
-          _ => unreachable!(),
+        let op_name = match op {
+          FactorOp::Multiply => "Mul",
+          FactorOp::Divide => "Div",
+          FactorOp::Modulo => "Mod",
         };
 
         Self::Tree(op_name.to_owned(), vec![Self::from(&**lhs), rhs.into()])

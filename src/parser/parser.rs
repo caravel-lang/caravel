@@ -1,5 +1,16 @@
 use super::ast::*;
 use crate::lexer::token::{Token, TokenType};
+use crate::position::Position;
+
+const eofToken: Token = Token {
+  start_pos: Position {
+    line: 0,
+    column: 0,
+    index: 0,
+  },
+  source_len: 0,
+  token_type: TokenType::Eof,
+};
 
 pub struct Parser {
   tokens: Vec<Token>,
@@ -11,20 +22,25 @@ impl Parser {
     Self { tokens, index: 0 }
   }
 
-  pub fn parse(mut self) -> Expression {
-    // while self.index < self.tokens.len() as u32 {
-    //   println!("{:?}", self.eat())
-    // }
-    self.parse_expression()
+  pub fn parse(mut self) -> Block {
+    self.parse_block()
   }
 
   // Helpers
   fn get(&self) -> Token {
-    self.tokens[self.index as usize].clone()
+    self
+      .tokens
+      .get(self.index as usize)
+      .unwrap_or(&eofToken)
+      .clone()
   }
 
   fn peek(&self) -> Token {
-    self.tokens[self.index as usize + 1].clone()
+    self
+      .tokens
+      .get(self.index as usize + 1)
+      .unwrap_or(&eofToken)
+      .clone()
   }
 
   fn eat(&mut self) -> Token {
@@ -62,7 +78,7 @@ impl Parser {
 
       match self.eat().token_type {
         TokenType::Eol => (),
-        // Allow single line blocks
+        // Last EOL in a block is optional
         TokenType::RBracket => break,
         _ => panic!("Unexpected token"),
       }
@@ -71,7 +87,10 @@ impl Parser {
     expressions
   }
 
-  // assignment : (let)? identifier '=' term | term
+  // assignment : let identifier ':' identifier '=' term    ; Assignment
+  //            | let identifier ':' identifier             ; DefaultAssignment
+  //            | identifier '=' term                       ; Reassignment
+  //            | term
   fn parse_assignment(&mut self) -> Assignment {
     let has_let = match self.get().token_type {
       TokenType::Let => {
@@ -83,7 +102,7 @@ impl Parser {
     };
 
     match self.peek().token_type {
-      TokenType::Assignment => (),
+      TokenType::Assignment | TokenType::Colon => (),
       _ => {
         if !has_let {
           return Assignment::Term(self.parse_term());
@@ -96,15 +115,28 @@ impl Parser {
       _ => panic!("Unexpected token"),
     };
 
-    match self.eat().token_type {
-      TokenType::Assignment => (),
-      _ => return Assignment::Declaration(identifier),
+    let mut assig_type = String::new();
+    if has_let {
+      match self.eat().token_type {
+        TokenType::Colon => (),
+        _ => panic!("Expected colon"),
+      }
+
+      match self.eat().token_type {
+        TokenType::Identifier(typ) => assig_type = typ,
+        _ => panic!("Expected type"),
+      }
+    }
+
+    match self.get().token_type {
+      TokenType::Assignment => self.eat(),
+      _ => return Assignment::DefaultAssignment(identifier, assig_type),
     };
 
     let rhs = self.parse_term();
 
     match has_let {
-      true => Assignment::Assignment(identifier, rhs),
+      true => Assignment::Assignment(identifier, assig_type, rhs),
       false => Assignment::Reassignment(identifier, rhs),
     }
   }
@@ -115,12 +147,15 @@ impl Parser {
 
     loop {
       let op = match self.get().token_type {
-        TokenType::Add | TokenType::Subtract => self.eat(),
+        TokenType::Add => TermOp::Add,
+        TokenType::Subtract => TermOp::Subtract,
         _ => break,
       };
 
+      self.eat();
+
       let rhs = self.parse_factor();
-      term = Term::Operation(Box::new(term), op.clone(), rhs);
+      term = Term::Operation(Box::new(term), op, rhs);
     }
 
     term
@@ -132,12 +167,16 @@ impl Parser {
 
     loop {
       let op = match self.get().token_type {
-        TokenType::Multiply | TokenType::Divide | TokenType::Modulo => self.eat(),
+        TokenType::Multiply => FactorOp::Multiply,
+        TokenType::Divide => FactorOp::Divide,
+        TokenType::Modulo => FactorOp::Modulo,
         _ => break,
       };
 
+      self.eat();
+
       let rhs = self.parse_leaf();
-      factor = Factor::Operation(Box::new(factor), op.clone(), rhs);
+      factor = Factor::Operation(Box::new(factor), op, rhs);
     }
 
     factor

@@ -9,20 +9,31 @@ pub enum Expression {
 pub type Block = Vec<Expression>;
 
 pub enum Assignment {
-  Assignment(String, Term),
+  DefaultAssignment(String, String),
+  Assignment(String, String, Term),
   Reassignment(String, Term),
-  Declaration(String),
   Term(Term),
+}
+
+pub enum TermOp {
+  Add,
+  Subtract,
 }
 
 pub enum Term {
   Factor(Factor),
-  Operation(Box<Term>, Token, Factor),
+  Operation(Box<Term>, TermOp, Factor),
+}
+
+pub enum FactorOp {
+  Multiply,
+  Divide,
+  Modulo,
 }
 
 pub enum Factor {
   Leaf(Leaf),
-  Operation(Box<Factor>, Token, Leaf),
+  Operation(Box<Factor>, FactorOp, Leaf),
 }
 
 pub enum Leaf {

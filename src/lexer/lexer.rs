@@ -13,7 +13,11 @@ impl Lexer {
     Self {
       input: input.to_owned(),
       pos: Position::start(),
-      tokens: vec![],
+      tokens: vec![Token {
+        start_pos: Position::start(),
+        source_len: 0,
+        token_type: TokenType::LBracket,
+      }],
     }
   }
 
@@ -41,6 +45,7 @@ impl Lexer {
           '{' => TokenType::LBracket,
           '}' => TokenType::RBracket,
           '=' => TokenType::Assignment,
+          ':' => TokenType::Colon,
           _ => panic!("Unexpected character '{}'", self.get()),
         };
 
@@ -50,8 +55,9 @@ impl Lexer {
       }
     }
 
-    // Always append an EOL
-    self.add_token(TokenType::Eol, self.pos.clone());
+    // Surround with brackets so that the program
+    // is parsed as an entire block
+    self.add_token(TokenType::RBracket, self.pos.clone());
     self.tokens
   }
 

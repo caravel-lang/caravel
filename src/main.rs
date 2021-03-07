@@ -1,8 +1,12 @@
+pub mod analyzer;
 pub mod backend;
 pub mod lexer;
 pub mod parser;
 pub mod position;
+pub mod symbol_table;
+pub mod types;
 
+use analyzer::analyze;
 use lexer::lexer::Lexer;
 use parser::parser::Parser;
 use std::fs;
@@ -14,7 +18,10 @@ fn main() {
     let tokens = lexer.lex();
 
     let parser = Parser::new(tokens);
-    let expression = parser.parse();
+    let block = parser.parse();
 
-    backend::print::print(&expression);
+    let prog_type = analyze(&block);
+    println!("Type: {:?}", prog_type);
+
+    backend::print::print(&block);
 }
