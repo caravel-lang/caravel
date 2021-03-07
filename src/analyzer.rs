@@ -1,6 +1,7 @@
 use crate::parser::ast::*;
 use crate::symbol_table::SymbolTable;
 use crate::types::Type;
+use std::convert::TryFrom;
 
 pub fn analyze(program: &Block) -> Type {
   analyze_block(program, &mut SymbolTable::new(None))
@@ -10,6 +11,7 @@ fn analyze_expression(expr: &Expression, table: &mut SymbolTable) -> Type {
   match expr {
     Expression::Assignment(assig) => analyze_assignment(assig, table),
     Expression::Block(block) => analyze_block(block, table),
+    Expression::Term(term) => analyze_term(term, table),
   }
 }
 
@@ -25,61 +27,47 @@ fn analyze_block(block: &Block, table: &mut SymbolTable) -> Type {
   Type::Void
 }
 
+//
 fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
   match assig {
-    Assignment::DefaultAssignment(ident, typ_ident) => {
-      let typ = match &typ_ident[..] {
-        "float" => Type::Float,
-        "void" => Type::Void,
-        _ => panic!("Unknown type"),
+    Assignment::Initialization(ident, type_ident, val) => {
+      if table.has(&ident) {
+        panic!("Declaration of previously declared variable")
       };
 
-      if table.has(ident) {
-        panic!("Can't redeclare variable")
+      let typ = Type::try_from(type_ident.to_owned()).unwrap();
+
+      if let Some(val) = val {
+        let val_type = analyze_expression(val, table);
+
+        if val_type != typ {
+          panic!("Type mismatch")
+        }
+      };
+
+      table.set(&ident, typ);
+      typ
+    }
+    Assignment::Reassignment(ident, val) => {
+      let typ = analyze_expression(val, table);
+      match table.get(&ident) {
+        None => panic!("Use of undeclared variable"),
+        Some(cur_type) => {
+          if cur_type != typ {
+            panic!("Type mismatch")
+          }
+        }
       }
 
       typ
     }
-    Assignment::Assignment(ident, typ_ident, value) => {
-      let typ = match &typ_ident[..] {
-        "float" => Type::Float,
-        "void" => Type::Void,
-        _ => panic!("Unknown type"),
-      };
-      let term_type = analyze_term(value, table);
-      if term_type != typ {
-        panic!("Type mismatch")
-      }
-
-      if table.has(ident) {
-        panic!("Can't redeclare variable")
-      }
-
-      table.set(ident, typ);
-      typ
-    }
-    Assignment::Reassignment(ident, value) => {
-      let cur_type = match table.get(ident) {
-        Some(typ) => typ,
-        None => panic!("Uknown identifier"),
-      };
-
-      let typ = analyze_term(value, table);
-      if typ != cur_type {
-        panic!("Can't change type of variable")
-      }
-
-      table.set(ident, typ);
-      typ
-    }
-    Assignment::Term(term) => analyze_term(term, table),
   }
 }
 
 fn analyze_term(term: &Term, table: &mut SymbolTable) -> Type {
   match term {
     Term::Factor(factor) => analyze_factor(factor, table),
-    Term::Operation(lhs, op, rhs) => {
+    Term::Operation(lhs, _, rhs) => {
       let lhs_type = analyze_term(lhs, table);
       let rhs_type = analyze_factor(rhs, table);
 
@@ -95,7 +83,7 @@ fn analyze_term(term: &Term, table: &mut SymbolTable) -> Type {
 fn analyze_factor(factor: &Factor, table: &mut SymbolTable) -> Type {
   match factor {
     Factor::Leaf(leaf) => analyze_leaf(leaf, table),
-    Factor::Operation(lhs, op, rhs) => {
+    Factor::Operation(lhs, _, rhs) => {
       let lhs_type = analyze_factor(lhs, table);
       let rhs_type = analyze_leaf(rhs, table);
 

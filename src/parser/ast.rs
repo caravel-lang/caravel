@@ -1,18 +1,14 @@
-use crate::lexer::token::Token;
-use std::boxed::Box;
-
 pub enum Expression {
   Assignment(Assignment),
   Block(Block),
+  Term(Term),
 }
 
 pub type Block = Vec<Expression>;
 
 pub enum Assignment {
-  DefaultAssignment(String, String),
-  Assignment(String, String, Term),
-  Reassignment(String, Term),
-  Term(Term),
+  Initialization(String, String, Option<Box<Expression>>),
+  Reassignment(String, Box<Expression>),
 }
 
 pub enum TermOp {

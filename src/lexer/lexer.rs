@@ -13,6 +13,8 @@ impl Lexer {
     Self {
       input: input.to_owned(),
       pos: Position::start(),
+      // Surround with brackets so that the program
+      // is parsed as an entire block
       tokens: vec![Token {
         start_pos: Position::start(),
         source_len: 0,
@@ -26,14 +28,18 @@ impl Lexer {
       let c = self.get();
       let start_pos = self.pos.clone();
 
-      if util::is_ident_start(c) {
-        self.parse_identifier_or_keyword();
+      // Ignore whitespace
+      if c == ' ' || c == '\t' {
+        self.eat();
+        continue;
+      }
+
+      let token_type = if util::is_ident_start(c) {
+        self.parse_identifier_or_keyword()
       } else if c.is_ascii_digit() {
-        self.parse_float_literal();
-      } else if c == ' ' || c == '\t' {
-        self.eat(); // Ignore whitespace
+        self.parse_float_literal()
       } else {
-        let token_type = match c {
+        match self.eat() {
           '\n' => TokenType::Eol,
           '+' => TokenType::Add,
           '-' => TokenType::Subtract,
@@ -47,12 +53,10 @@ impl Lexer {
           '=' => TokenType::Assignment,
           ':' => TokenType::Colon,
           _ => panic!("Unexpected character '{}'", self.get()),
-        };
+        }
+      };
 
-        self.eat();
-
-        self.add_token(token_type, start_pos);
-      }
+      self.add_token(token_type, start_pos);
     }
 
     // Surround with brackets so that the program
@@ -92,25 +96,20 @@ impl Lexer {
   }
 
   // Token specific parse functions
-  fn parse_identifier_or_keyword(&mut self) {
-    let start_pos = self.pos.clone();
+  fn parse_identifier_or_keyword(&mut self) -> TokenType {
     let mut value = self.eat().to_string();
 
     while util::is_ident_body(self.get()) {
       value.push(self.eat());
     }
 
-    let token_type = match &value[..] {
+    match &value[..] {
       "let" => TokenType::Let,
       _ => TokenType::Identifier(value),
-    };
-
-    self.add_token(token_type, start_pos);
+    }
   }
 
-  fn parse_float_literal(&mut self) {
-    let start_pos = self.pos.clone();
-
+  fn parse_float_literal(&mut self) -> TokenType {
     let mut value = self.eat().to_string();
     let mut encountered_period = false;
 
@@ -128,6 +127,6 @@ impl Lexer {
       value.push(c);
     }
 
-    self.add_token(TokenType::FloatLiteral(value), start_pos);
+    TokenType::FloatLiteral(value)
   }
 }

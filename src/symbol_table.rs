@@ -1,6 +1,5 @@
 use crate::types::Type;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 pub struct SymbolTable {
   parent: Option<Box<Self>>,
