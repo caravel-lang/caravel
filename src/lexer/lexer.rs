@@ -1,6 +1,7 @@
-use super::token::{Token, TokenType};
+use super::token::Token;
 use super::util;
-use crate::position::Position;
+use crate::position::{Position, Span};
+use crate::source_string::SourceString;
 
 pub struct Lexer {
   input: String,
@@ -15,18 +16,13 @@ impl Lexer {
       pos: Position::start(),
       // Surround with brackets so that the program
       // is parsed as an entire block
-      tokens: vec![Token {
-        start_pos: Position::start(),
-        source_len: 0,
-        token_type: TokenType::LBracket,
-      }],
+      tokens: vec![Token::LBracket],
     }
   }
 
   pub fn lex(mut self) -> Vec<Token> {
     while self.pos.index < self.input.len() as u32 {
       let c = self.get();
-      let start_pos = self.pos.clone();
 
       // Ignore whitespace
       if c == ' ' || c == '\t' {
@@ -34,34 +30,34 @@ impl Lexer {
         continue;
       }
 
-      let token_type = if util::is_ident_start(c) {
+      let token = if util::is_ident_start(c) {
         self.parse_identifier_or_keyword()
       } else if c.is_ascii_digit() {
         self.parse_float_literal()
       } else {
         match self.eat() {
-          '\n' => TokenType::Eol,
-          '+' => TokenType::Add,
-          '-' => TokenType::Subtract,
-          '*' => TokenType::Multiply,
-          '/' => TokenType::Divide,
-          '%' => TokenType::Modulo,
-          '(' => TokenType::LParen,
-          ')' => TokenType::RParen,
-          '{' => TokenType::LBracket,
-          '}' => TokenType::RBracket,
-          '=' => TokenType::Assignment,
-          ':' => TokenType::Colon,
+          '\n' => Token::Eol,
+          '+' => Token::Add,
+          '-' => Token::Subtract,
+          '*' => Token::Multiply,
+          '/' => Token::Divide,
+          '%' => Token::Modulo,
+          '(' => Token::LParen,
+          ')' => Token::RParen,
+          '{' => Token::LBracket,
+          '}' => Token::RBracket,
+          '=' => Token::Assignment,
+          ':' => Token::Colon,
           _ => panic!("Unexpected character '{}'", self.get()),
         }
       };
 
-      self.add_token(token_type, start_pos);
+      self.tokens.push(token);
     }
 
     // Surround with brackets so that the program
     // is parsed as an entire block
-    self.add_token(TokenType::RBracket, self.pos.clone());
+    self.tokens.push(Token::RBracket);
     self.tokens
   }
 
@@ -86,17 +82,20 @@ impl Lexer {
     c
   }
 
-  fn add_token(&mut self, token_type: TokenType, start_pos: Position) {
+  fn make_source_string(&self, str: &str, start_pos: Position) -> SourceString {
     let start_index = start_pos.index;
-    self.tokens.push(Token {
-      token_type,
-      start_pos,
-      source_len: self.pos.index - start_index,
-    })
+    SourceString {
+      value: str.to_owned(),
+      pos: Span {
+        start_pos,
+        source_len: self.pos.index - start_index,
+      },
+    }
   }
 
   // Token specific parse functions
-  fn parse_identifier_or_keyword(&mut self) -> TokenType {
+  fn parse_identifier_or_keyword(&mut self) -> Token {
+    let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
 
     while util::is_ident_body(self.get()) {
@@ -104,12 +103,13 @@ impl Lexer {
     }
 
     match &value[..] {
-      "let" => TokenType::Let,
-      _ => TokenType::Identifier(value),
+      "let" => Token::Let,
+      _ => Token::Identifier(self.make_source_string(&value, start_pos)),
     }
   }
 
-  fn parse_float_literal(&mut self) -> TokenType {
+  fn parse_float_literal(&mut self) -> Token {
+    let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
     let mut encountered_period = false;
 
@@ -127,6 +127,6 @@ impl Lexer {
       value.push(c);
     }
 
-    TokenType::FloatLiteral(value)
+    Token::FloatLiteral(self.make_source_string(&value, start_pos))
   }
 }

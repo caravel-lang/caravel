@@ -31,11 +31,11 @@ fn analyze_block(block: &Block, table: &mut SymbolTable) -> Type {
 fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
   match assig {
     Assignment::Initialization(ident, type_ident, val) => {
-      if table.has(&ident) {
+      if table.has(&ident.value) {
         panic!("Declaration of previously declared variable")
       };
 
-      let typ = Type::try_from(type_ident.to_owned()).unwrap();
+      let typ = Type::try_from(type_ident.value.to_owned()).unwrap();
 
       if let Some(val) = val {
         let val_type = analyze_expression(val, table);
@@ -45,12 +45,12 @@ fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
         }
       };
 
-      table.set(&ident, typ);
+      table.set(&ident.value, typ);
       typ
     }
     Assignment::Reassignment(ident, val) => {
       let typ = analyze_expression(val, table);
-      match table.get(&ident) {
+      match table.get(&ident.value) {
         None => panic!("Use of undeclared variable"),
         Some(cur_type) => {
           if cur_type != typ {
@@ -99,7 +99,7 @@ fn analyze_factor(factor: &Factor, table: &mut SymbolTable) -> Type {
 fn analyze_leaf(leaf: &Leaf, table: &mut SymbolTable) -> Type {
   match leaf {
     Leaf::FloatLiteral(_) => Type::Float,
-    Leaf::Identifier(ident) => match table.get(ident) {
+    Leaf::Identifier(ident) => match table.get(&ident.value) {
       Some(typ) => typ,
       None => panic!("Unknown identifier"),
     },

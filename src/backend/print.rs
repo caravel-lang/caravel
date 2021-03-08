@@ -34,7 +34,7 @@ impl From<&Assignment> for Node {
   fn from(assignment: &Assignment) -> Self {
     match assignment {
       Assignment::Initialization(ident, _, expr) => {
-        let mut children = vec![Node::Leaf(ident.to_owned())];
+        let mut children = vec![Node::Leaf(ident.value.clone())];
 
         if let Some(expr) = expr {
           children.push(Node::from(&**expr));
@@ -44,7 +44,7 @@ impl From<&Assignment> for Node {
       }
       Assignment::Reassignment(ident, expr) => Node::Tree(
         "Reassignment".to_owned(),
-        vec![Node::Leaf(ident.to_owned()), Node::from(&**expr)],
+        vec![Node::Leaf(ident.value.clone()), Node::from(&**expr)],
       ),
     }
   }
@@ -86,8 +86,8 @@ impl From<&Factor> for Node {
 impl From<&Leaf> for Node {
   fn from(leaf: &Leaf) -> Self {
     match leaf {
-      Leaf::Identifier(val) => Self::Leaf(val.to_owned()),
-      Leaf::FloatLiteral(val) => Self::Leaf(val.to_owned()),
+      Leaf::Identifier(val) => Self::Leaf(val.value.clone()),
+      Leaf::FloatLiteral(val) => Self::Leaf(val.value.clone()),
       Leaf::Term(term) => Self::from(&**term),
     }
   }
