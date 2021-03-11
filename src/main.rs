@@ -7,11 +7,10 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 pub mod position;
-pub mod source_string;
 pub mod symbol_table;
 pub mod types;
 
-use analyzer::analyze;
+use analyzer::Analyzer;
 use error::{print_error, Result};
 use lexer::lexer::Lexer;
 use parser::parser::Parser;
@@ -23,10 +22,11 @@ fn compile(source: &str) -> Result<()> {
   let lexer = Lexer::new(source);
   let tokens = lexer.lex()?;
 
-  let parser = Parser::new(tokens);
+  let parser = Parser::new(&tokens);
   let block = parser.parse()?;
 
-  let prog_type = analyze(&block)?;
+  let mut analyzer = Analyzer::new(&tokens);
+  analyzer.analyze(&block)?;
 
   backend::print::print(&block);
 

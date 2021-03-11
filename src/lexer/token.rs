@@ -1,17 +1,16 @@
-use crate::position::Span;
-use crate::source_string::SourceString;
+use crate::position::source_position::SourceSpan;
 
 #[derive(Clone, Debug)]
 pub struct Token {
-  pub pos: Span,
+  pub pos: SourceSpan,
   pub kind: TokenKind,
 }
 
 #[derive(Clone, Debug)]
 pub enum TokenKind {
-  Identifier(SourceString),
+  Identifier(String),
 
-  FloatLiteral(SourceString),
+  FloatLiteral(String),
 
   // Operators
   // Arithmetic Operators

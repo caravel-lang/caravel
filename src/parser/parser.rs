@@ -1,20 +1,20 @@
 use super::ast::*;
 use crate::error::{Error, ErrorKind, Result};
 use crate::lexer::token::{Token, TokenKind};
-use crate::position::DEFAULT_SPAN;
+use crate::position::source_position::DEFAULT_REAL_SPAN;
 
 const EOF_TOKEN: Token = Token {
   kind: TokenKind::Eof,
-  pos: DEFAULT_SPAN,
+  pos: DEFAULT_REAL_SPAN,
 };
 
-pub struct Parser {
-  tokens: Vec<Token>,
-  index: u32,
+pub struct Parser<'a> {
+  tokens: &'a Vec<Token>,
+  index: usize,
 }
 
-impl Parser {
-  pub fn new(tokens: Vec<Token>) -> Self {
+impl<'a> Parser<'a> {
+  pub fn new(tokens: &'a Vec<Token>) -> Self {
     Self { tokens, index: 0 }
   }
 
@@ -39,6 +39,7 @@ impl Parser {
     self.get()
   }
 
+  #[allow(unused_variables)]
   fn eat_if_get(&mut self, kind: TokenKind, expected: &str) -> Result<&Token> {
     if !matches!(self.get(), kind) {
       self.throw_unexpected_token_msg(&format!("expected {}", expected))?;
@@ -87,6 +88,7 @@ impl Parser {
 
   // block : '{' ((expression)? EOL)* (expression)? '}'
   fn parse_block(&mut self) -> Result<Block> {
+    let start_index = self.index;
     self.eat(); // '{'
 
     let mut expressions = Vec::new();
@@ -111,7 +113,10 @@ impl Parser {
       };
     }
 
-    Ok(expressions)
+    Ok(Block {
+      expressions,
+      start_index,
+    })
   }
 
   // assignment : let identifier ':' identifier '=' expression    ; Initialization
@@ -120,6 +125,8 @@ impl Parser {
   fn parse_assignment(&mut self) -> Result<Assignment> {
     Ok(match self.get_and_eat().kind.clone() {
       TokenKind::Let => {
+        let start_index = self.index - 1;
+
         let ident = match &self.get().kind {
           TokenKind::Identifier(ident) => ident.clone(),
           _ => self.throw_unexpected_token_msg("expected identifier")?,
@@ -137,13 +144,18 @@ impl Parser {
         self.eat();
 
         if !matches!(self.get().kind, TokenKind::Assignment) {
-          return Ok(Assignment::Initialization(ident, type_ident, None));
+          return Ok(Assignment::Initialization(
+            ident,
+            type_ident,
+            None,
+            start_index,
+          ));
         };
 
         self.eat();
 
         let value = self.parse_expression()?;
-        Assignment::Initialization(ident, type_ident, Some(Box::new(value)))
+        Assignment::Initialization(ident, type_ident, Some(Box::new(value)), start_index)
       }
       TokenKind::Identifier(ident) => {
         self.eat_if_get(TokenKind::Assignment, "'='")?;
@@ -199,8 +211,8 @@ impl Parser {
   //      | float_literal
   fn parse_leaf(&mut self) -> Result<Leaf> {
     Ok(match self.get_and_eat().kind.clone() {
-      TokenKind::Identifier(value) => Leaf::Identifier(value.to_owned()),
-      TokenKind::FloatLiteral(value) => Leaf::FloatLiteral(value.to_owned()),
+      TokenKind::Identifier(value) => Leaf::Identifier(value.to_owned(), self.index - 1),
+      TokenKind::FloatLiteral(value) => Leaf::FloatLiteral(value.to_owned(), self.index - 1),
       TokenKind::LParen => {
         let term = self.parse_term()?;
         self.eat_if_get(TokenKind::RParen, "')'")?;

@@ -1,8 +1,7 @@
-use crate::position::{Span, DEFAULT_SPAN};
-use crate::source_string::SourceString;
+use crate::position::token_position::TokenSpan;
 
 pub trait Node {
-  fn pos(&self) -> Span;
+  fn pos(&self) -> TokenSpan;
 }
 
 pub enum Expression {
@@ -12,46 +11,56 @@ pub enum Expression {
 }
 
 impl Node for Expression {
-  fn pos(&self) -> Span {
+  fn pos(&self) -> TokenSpan {
     match self {
-      Self::Assignment(node) => node.pos(),
-      Self::Block(node) => node.pos(),
-      Self::Term(node) => node.pos(),
+      Self::Assignment(assig) => assig.pos(),
+      Self::Block(block) => block.pos(),
+      Self::Term(term) => term.pos(),
     }
   }
 }
 
-pub type Block = Vec<Expression>;
+pub struct Block {
+  pub expressions: Vec<Expression>,
+  pub start_index: usize,
+}
 
 impl Node for Block {
-  fn pos(&self) -> Span {
-    let mut iter = self.iter();
-    let first_expr = match iter.next() {
-      Some(first) => first,
-      None => return DEFAULT_SPAN,
-    };
-    iter
-      .map(|expr| expr.pos())
-      .fold(first_expr.pos(), |acc, pos| acc + pos)
+  fn pos(&self) -> TokenSpan {
+    if self.expressions.len() == 0 {
+      return TokenSpan {
+        start: self.start_index,
+        len: 2,
+      };
+    }
+
+    let mut pos = self.expressions[0].pos();
+
+    match self.expressions.iter().last() {
+      Some(last) => pos = pos + last.pos(),
+      None => (),
+    }
+
+    pos
   }
 }
 
 pub enum Assignment {
-  Initialization(SourceString, SourceString, Option<Box<Expression>>),
-  Reassignment(SourceString, Box<Expression>),
+  Initialization(String, String, Option<Box<Expression>>, usize),
+  Reassignment(String, Box<Expression>),
 }
 
 impl Node for Assignment {
-  fn pos(&self) -> Span {
+  fn pos(&self) -> TokenSpan {
     match self {
-      Self::Initialization(ident, type_ident, rhs) => {
-        let mut pos = ident.pos.clone() + type_ident.pos.clone();
-        if let Some(rhs) = rhs {
-          pos = pos + rhs.pos();
-        }
-        pos
-      }
-      Self::Reassignment(ident, rhs) => ident.pos.clone() + rhs.pos(),
+      Self::Initialization(_, _, rhs, start) => TokenSpan::new(
+        *start,
+        5 + match rhs {
+          Some(rhs) => rhs.pos().len,
+          None => 0,
+        },
+      ),
+      Self::Reassignment(_, expr) => expr.pos() - 2,
     }
   }
 }
@@ -67,7 +76,7 @@ pub enum Term {
 }
 
 impl Node for Term {
-  fn pos(&self) -> Span {
+  fn pos(&self) -> TokenSpan {
     match self {
       Self::Factor(factor) => factor.pos(),
       Self::Operation(lhs, _, rhs) => lhs.pos() + rhs.pos(),
@@ -87,7 +96,7 @@ pub enum Factor {
 }
 
 impl Node for Factor {
-  fn pos(&self) -> Span {
+  fn pos(&self) -> TokenSpan {
     match self {
       Self::Leaf(leaf) => leaf.pos(),
       Self::Operation(lhs, _, rhs) => lhs.pos() + rhs.pos(),
@@ -96,15 +105,15 @@ impl Node for Factor {
 }
 
 pub enum Leaf {
-  Identifier(SourceString),
-  FloatLiteral(SourceString),
+  Identifier(String, usize),
+  FloatLiteral(String, usize),
   Term(Box<Term>),
 }
 
 impl Node for Leaf {
-  fn pos(&self) -> Span {
+  fn pos(&self) -> TokenSpan {
     match self {
-      Self::Identifier(str) | Self::FloatLiteral(str) => str.pos.clone(),
+      Self::Identifier(_, start) | Self::FloatLiteral(_, start) => TokenSpan::new(*start, 1),
       Self::Term(term) => term.pos(),
     }
   }

@@ -1,12 +1,11 @@
 use super::token::{Token, TokenKind};
 use super::util;
 use crate::error::{Error, ErrorKind, Result};
-use crate::position::{Position, Span};
-use crate::source_string::SourceString;
+use crate::position::source_position::{SourcePosition, SourceSpan};
 
 pub struct Lexer {
   input: String,
-  pos: Position,
+  pos: SourcePosition,
   tokens: Vec<Token>,
 }
 
@@ -14,7 +13,7 @@ impl Lexer {
   pub fn new(input: &str) -> Self {
     Self {
       input: input.to_owned(),
-      pos: Position::start(),
+      pos: SourcePosition::start(),
       tokens: Vec::new(),
     }
   }
@@ -24,7 +23,7 @@ impl Lexer {
     // is parsed as an entire block
     self.add_token(TokenKind::LBracket, self.pos.clone());
 
-    while self.pos.index < self.input.len() as u32 {
+    while self.pos.index < self.input.len() {
       let start_pos = self.pos.clone();
       let c = self.get();
 
@@ -56,7 +55,10 @@ impl Lexer {
             return Err(Error::new(
               ErrorKind::UnexpectedChar,
               &format!("Unexpected character '{}'", c),
-              Span::new(start_pos, 1),
+              SourceSpan {
+                start_pos,
+                source_len: 1,
+              },
             ))
           }
         }
@@ -93,27 +95,18 @@ impl Lexer {
     c
   }
 
-  fn make_source_string(&self, str: &str, start_pos: Position) -> SourceString {
-    let start_index = start_pos.index;
-    SourceString {
-      value: str.to_owned(),
-      pos: Span {
-        start_pos,
-        source_len: self.pos.index - start_index,
-      },
-    }
-  }
-
-  fn add_token(&mut self, kind: TokenKind, start_pos: Position) {
+  fn add_token(&mut self, kind: TokenKind, start_pos: SourcePosition) {
     self.tokens.push(Token {
       kind,
-      pos: Span::new(start_pos.clone(), self.pos.index - start_pos.index),
+      pos: SourceSpan {
+        start_pos: start_pos.clone(),
+        source_len: self.pos.index - start_pos.index,
+      },
     })
   }
 
   // Token specific parse functions
   fn parse_identifier_or_keyword(&mut self) -> TokenKind {
-    let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
 
     while util::is_ident_body(self.get()) {
@@ -122,12 +115,11 @@ impl Lexer {
 
     match &value[..] {
       "let" => TokenKind::Let,
-      _ => TokenKind::Identifier(self.make_source_string(&value, start_pos)),
+      _ => TokenKind::Identifier(value),
     }
   }
 
   fn parse_float_literal(&mut self) -> TokenKind {
-    let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
     let mut encountered_period = false;
 
@@ -145,6 +137,6 @@ impl Lexer {
       value.push(c);
     }
 
-    TokenKind::FloatLiteral(self.make_source_string(&value, start_pos))
+    TokenKind::FloatLiteral(value)
   }
 }
