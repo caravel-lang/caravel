@@ -1,5 +1,6 @@
-use super::token::Token;
+use super::token::{Token, TokenKind};
 use super::util;
+use crate::error::{Error, ErrorKind, Result};
 use crate::position::{Position, Span};
 use crate::source_string::SourceString;
 
@@ -14,14 +15,17 @@ impl Lexer {
     Self {
       input: input.to_owned(),
       pos: Position::start(),
-      // Surround with brackets so that the program
-      // is parsed as an entire block
-      tokens: vec![Token::LBracket],
+      tokens: Vec::new(),
     }
   }
 
-  pub fn lex(mut self) -> Vec<Token> {
+  pub fn lex(mut self) -> Result<Vec<Token>> {
+    // Surround with brackets so that the program
+    // is parsed as an entire block
+    self.add_token(TokenKind::LBracket, self.pos.clone());
+
     while self.pos.index < self.input.len() as u32 {
+      let start_pos = self.pos.clone();
       let c = self.get();
 
       // Ignore whitespace
@@ -30,35 +34,42 @@ impl Lexer {
         continue;
       }
 
-      let token = if util::is_ident_start(c) {
+      let kind = if util::is_ident_start(c) {
         self.parse_identifier_or_keyword()
       } else if c.is_ascii_digit() {
         self.parse_float_literal()
       } else {
         match self.eat() {
-          '\n' => Token::Eol,
-          '+' => Token::Add,
-          '-' => Token::Subtract,
-          '*' => Token::Multiply,
-          '/' => Token::Divide,
-          '%' => Token::Modulo,
-          '(' => Token::LParen,
-          ')' => Token::RParen,
-          '{' => Token::LBracket,
-          '}' => Token::RBracket,
-          '=' => Token::Assignment,
-          ':' => Token::Colon,
-          _ => panic!("Unexpected character '{}'", self.get()),
+          '\n' => TokenKind::Eol,
+          '+' => TokenKind::Add,
+          '-' => TokenKind::Subtract,
+          '*' => TokenKind::Multiply,
+          '/' => TokenKind::Divide,
+          '%' => TokenKind::Modulo,
+          '(' => TokenKind::LParen,
+          ')' => TokenKind::RParen,
+          '{' => TokenKind::LBracket,
+          '}' => TokenKind::RBracket,
+          '=' => TokenKind::Assignment,
+          ':' => TokenKind::Colon,
+          _ => {
+            return Err(Error::new(
+              ErrorKind::UnexpectedChar,
+              &format!("Unexpected character '{}'", c),
+              Span::new(start_pos, 1),
+            ))
+          }
         }
       };
 
-      self.tokens.push(token);
+      self.add_token(kind, start_pos);
     }
 
     // Surround with brackets so that the program
     // is parsed as an entire block
-    self.tokens.push(Token::RBracket);
-    self.tokens
+    self.add_token(TokenKind::RBracket, self.pos.clone());
+
+    Ok(self.tokens)
   }
 
   // Helpers
@@ -93,8 +104,15 @@ impl Lexer {
     }
   }
 
+  fn add_token(&mut self, kind: TokenKind, start_pos: Position) {
+    self.tokens.push(Token {
+      kind,
+      pos: Span::new(start_pos.clone(), self.pos.index - start_pos.index),
+    })
+  }
+
   // Token specific parse functions
-  fn parse_identifier_or_keyword(&mut self) -> Token {
+  fn parse_identifier_or_keyword(&mut self) -> TokenKind {
     let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
 
@@ -103,12 +121,12 @@ impl Lexer {
     }
 
     match &value[..] {
-      "let" => Token::Let,
-      _ => Token::Identifier(self.make_source_string(&value, start_pos)),
+      "let" => TokenKind::Let,
+      _ => TokenKind::Identifier(self.make_source_string(&value, start_pos)),
     }
   }
 
-  fn parse_float_literal(&mut self) -> Token {
+  fn parse_float_literal(&mut self) -> TokenKind {
     let start_pos = self.pos.clone();
     let mut value = self.eat().to_string();
     let mut encountered_period = false;
@@ -127,6 +145,6 @@ impl Lexer {
       value.push(c);
     }
 
-    Token::FloatLiteral(self.make_source_string(&value, start_pos))
+    TokenKind::FloatLiteral(self.make_source_string(&value, start_pos))
   }
 }

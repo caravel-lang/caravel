@@ -1,13 +1,14 @@
+use crate::error::{Error, ErrorKind, Result};
 use crate::parser::ast::*;
 use crate::symbol_table::SymbolTable;
 use crate::types::Type;
 use std::convert::TryFrom;
 
-pub fn analyze(program: &Block) -> Type {
+pub fn analyze(program: &Block) -> Result<Type> {
   analyze_block(program, &mut SymbolTable::new(None))
 }
 
-fn analyze_expression(expr: &Expression, table: &mut SymbolTable) -> Type {
+fn analyze_expression(expr: &Expression, table: &mut SymbolTable) -> Result<Type> {
   match expr {
     Expression::Assignment(assig) => analyze_assignment(assig, table),
     Expression::Block(block) => analyze_block(block, table),
@@ -15,7 +16,7 @@ fn analyze_expression(expr: &Expression, table: &mut SymbolTable) -> Type {
   }
 }
 
-fn analyze_block(block: &Block, table: &mut SymbolTable) -> Type {
+fn analyze_block(block: &Block, table: &mut SymbolTable) -> Result<Type> {
   for (i, expr) in block.iter().enumerate() {
     let expr_type = analyze_expression(expr, table);
     if i == block.len() - 1 {
@@ -24,11 +25,11 @@ fn analyze_block(block: &Block, table: &mut SymbolTable) -> Type {
   }
 
   // Void type if no expressions in block
-  Type::Void
+  Ok(Type::Void)
 }
 
 //
-fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
+fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Result<Type> {
   match assig {
     Assignment::Initialization(ident, type_ident, val) => {
       if table.has(&ident.value) {
@@ -38,7 +39,7 @@ fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
       let typ = Type::try_from(type_ident.value.to_owned()).unwrap();
 
       if let Some(val) = val {
-        let val_type = analyze_expression(val, table);
+        let val_type = analyze_expression(val, table)?;
 
         if val_type != typ {
           panic!("Type mismatch")
@@ -46,10 +47,10 @@ fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
       };
 
       table.set(&ident.value, typ);
-      typ
+      Ok(typ)
     }
     Assignment::Reassignment(ident, val) => {
-      let typ = analyze_expression(val, table);
+      let typ = analyze_expression(val, table)?;
       match table.get(&ident.value) {
         None => panic!("Use of undeclared variable"),
         Some(cur_type) => {
@@ -59,50 +60,50 @@ fn analyze_assignment(assig: &Assignment, table: &mut SymbolTable) -> Type {
         }
       }
 
-      typ
+      Ok(typ)
     }
   }
 }
 
-fn analyze_term(term: &Term, table: &mut SymbolTable) -> Type {
+fn analyze_term(term: &Term, table: &mut SymbolTable) -> Result<Type> {
   match term {
     Term::Factor(factor) => analyze_factor(factor, table),
     Term::Operation(lhs, _, rhs) => {
-      let lhs_type = analyze_term(lhs, table);
-      let rhs_type = analyze_factor(rhs, table);
+      let lhs_type = analyze_term(lhs, table)?;
+      let rhs_type = analyze_factor(rhs, table)?;
 
       if lhs_type != rhs_type {
         panic!("Type mismatch")
       }
 
-      lhs_type
+      Ok(lhs_type)
     }
   }
 }
 
-fn analyze_factor(factor: &Factor, table: &mut SymbolTable) -> Type {
+fn analyze_factor(factor: &Factor, table: &mut SymbolTable) -> Result<Type> {
   match factor {
     Factor::Leaf(leaf) => analyze_leaf(leaf, table),
     Factor::Operation(lhs, _, rhs) => {
-      let lhs_type = analyze_factor(lhs, table);
-      let rhs_type = analyze_leaf(rhs, table);
+      let lhs_type = analyze_factor(lhs, table)?;
+      let rhs_type = analyze_leaf(rhs, table)?;
 
       if lhs_type != rhs_type {
         panic!("Type mismatch")
       }
 
-      lhs_type
+      Ok(lhs_type)
     }
   }
 }
 
-fn analyze_leaf(leaf: &Leaf, table: &mut SymbolTable) -> Type {
-  match leaf {
+fn analyze_leaf(leaf: &Leaf, table: &mut SymbolTable) -> Result<Type> {
+  Ok(match leaf {
     Leaf::FloatLiteral(_) => Type::Float,
     Leaf::Identifier(ident) => match table.get(&ident.value) {
       Some(typ) => typ,
       None => panic!("Unknown identifier"),
     },
-    Leaf::Term(term) => analyze_term(term, table),
-  }
+    Leaf::Term(term) => analyze_term(term, table)?,
+  })
 }

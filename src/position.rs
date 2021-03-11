@@ -46,6 +46,15 @@ pub struct Span {
   pub source_len: u32,
 }
 
+impl Span {
+  pub fn new(start_pos: Position, source_len: u32) -> Self {
+    Self {
+      start_pos,
+      source_len,
+    }
+  }
+}
+
 impl Add for Span {
   type Output = Self;
 

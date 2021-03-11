@@ -1,7 +1,14 @@
+use crate::position::Span;
 use crate::source_string::SourceString;
 
 #[derive(Clone, Debug)]
-pub enum Token {
+pub struct Token {
+  pub pos: Span,
+  pub kind: TokenKind,
+}
+
+#[derive(Clone, Debug)]
+pub enum TokenKind {
   Identifier(SourceString),
 
   FloatLiteral(SourceString),
